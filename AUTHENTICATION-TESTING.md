@@ -1,20 +1,23 @@
-# CatchYa authentication testing (no backend)
+# Native authentication checks
 
-1. Start CatchYa and open **Sign in**.
-2. Tap **Continue with email** to expand the email form.
-3. For a new device, tap **Create one**, enter a valid email and a password with at least 8 characters, and confirm it.
-4. The app creates a local test account and proceeds through onboarding.
-5. Sign out from Settings, then sign in with the same email and password.
+After completing BACKEND-SETUP.md, use a development build on iOS and Android:
 
-Test accounts are stored on this device only. Passwords are salted and SHA-256 hashed, but AsyncStorage is not suitable for production secrets. There is no email verification, password reset email, or server-side identity. Use test credentials only. Clearing app storage deletes the local accounts. Google sign-in is separate and requires OAuth configuration.
+1. Register with a test email you control. No onboarding should open before
+   confirmation when email confirmation is enabled.
+2. Open the confirmation email on the same device that requested it (PKCE).
+   Alternatively confirm on another device and then sign in normally.
+3. Complete About You and profile setup. Check the name, bio, social links and
+   photo after restarting, signing out/in, and signing in on another device.
+4. Verify invalid passwords give an error. Close/reopen to verify session restore.
+5. Reset a password and open the recovery link on the requesting device. The
+   new-password form must appear even for an already-onboarded user. Verify the
+   new password works and the old password is rejected.
+6. Enable/configure Google; check success and cancellation without fake accounts.
+7. With two test users, verify neither can read/update the other's profile,
+   private preferences, hidden social links or avatar objects through the API.
+8. Delete one test account from Settings. Confirm its Auth user, profile and
+   avatar objects are removed and its saved session cannot read/write data.
 
-## Files
-
-- `src/context/AuthContext.tsx` — auth screen state and local sign-in lifecycle
-- `src/services/localTestAuth.ts` — local test account create, verify, and delete
-- `src/screens/auth/SignInScreen.tsx`
-- `src/screens/auth/CreateAccountScreen.tsx`
-- `src/screens/auth/ResetPasswordScreen.tsx`
-- `src/navigation/AuthNavigator.tsx`
-- `src/components/Button.tsx`, `TextField.tsx`, `Banner.tsx`
-- `src/theme/colors.ts`
+Native interactive tests have not yet been run. Type checking, linting and
+server-side access tests are automated checks, not a substitute for these flows.
+Legacy device-only test credentials are cleared and never accepted as real login.

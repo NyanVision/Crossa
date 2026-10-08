@@ -15,7 +15,7 @@ export function ResetPasswordScreen() {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.intro}>Password reset emails need an online auth provider. Local testing accounts do not send email.</Text>
+      <Text style={styles.intro}>Enter your account email. Open the reset link on this device to choose a new password.</Text>
       <Banner message={error} />
       <TextField label="Email" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="you@example.com" />
       <Button
