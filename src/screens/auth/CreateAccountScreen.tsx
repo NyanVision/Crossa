@@ -32,7 +32,7 @@ export function CreateAccountScreen({ navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
-      <Text style={styles.notice}>Local testing mode · accounts stay on this device and are not verified online.</Text>
+      <Text style={styles.notice}>Your account and profile sync securely across your devices.</Text>
       <Banner message={localError ?? error} />
       <Button label="Continue with Google" loading={loading} onPress={() => { clearError(); signInWithGoogle(); }} icon={<Ionicons name="logo-google" size={18} color="#4285F4" />} />
       <Text style={styles.hint}>Or create an account with email</Text>

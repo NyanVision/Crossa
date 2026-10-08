@@ -63,9 +63,6 @@
       "expo-font"
     ],
     "extra": {
-      "googleExpoClientId": "REPLACE_WITH_EXPO_GO_CLIENT_ID",
-      "googleIosClientId": "REPLACE_WITH_IOS_CLIENT_ID",
-      "googleAndroidClientId": "REPLACE_WITH_ANDROID_CLIENT_ID",
       "eas": {
         "projectId": "392a2837-7446-46bc-b343-569403b2793c"
       }

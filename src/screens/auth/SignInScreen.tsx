@@ -25,7 +25,7 @@ export function SignInScreen({ navigation }: Props) {
       <View style={styles.brand}>
         <Text style={styles.h1}>Sign in</Text>
         <Text style={styles.sub}>Sign in to your CatchYa account to continue.</Text>
-        <Text style={styles.testNotice}>Local testing mode · accounts stay on this device and are not verified online.</Text>
+        <Text style={styles.testNotice}>Your account and profile sync securely across your devices.</Text>
       </View>
 
       <Banner message={error} />
@@ -65,7 +65,7 @@ export function SignInScreen({ navigation }: Props) {
               signInWithEmail(email, password);
             }}
           />
-          <Text style={styles.hint}>Email sign-in needs a configured authentication service. Your saved CatchYa profile data stays on this device.</Text>
+          <Text style={styles.hint}>Use the email and password you registered with.</Text>
         </View>
       )}
 

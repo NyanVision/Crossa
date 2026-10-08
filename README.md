@@ -88,23 +88,17 @@ Expo SDK 57, so use the current Expo Go app on your phone.
   the OS Settings app: iOS → Settings → CatchYa; Android → Settings → Apps →
   CatchYa → Permissions.
 
-## 5. Email authentication for local testing
+## 5. Supabase authentication and profiles
 
-Email sign-up and sign-in work in **local testing mode**, without connecting a
-backend. From Sign in, choose Continue with email. If this device has no test
-account yet, choose Create one, register an email and password (8+ characters),
-then use those same credentials to sign in. Accounts are stored only on this
-device; there is no email verification, password reset email, or server
-identity. The app displays this mode on both auth screens. Passwords are salted
-and hashed for this local test flow, but AsyncStorage is not production-grade
-credential storage. Do not use real passwords or ship this mode to production.
-
-Google sign-in remains a real OAuth flow and still needs Google Cloud OAuth
-client IDs; local email test accounts do not need any provider setup.
+Email/password accounts, Google OAuth, persistent sessions, password recovery,
+private profiles, onboarding preferences and photos now use Supabase.
+See [BACKEND-SETUP.md](BACKEND-SETUP.md) for provider configuration and the
+remaining device checks. Legacy device-only test accounts are not migrated.
+Use an Expo development build for the `catchya://` callback links.
 
 ## 6. Nearby discovery backend contract
 
-The app currently has no backend SDK or nearby query, so radar does not invent
+The app has Supabase authentication and profiles, but no nearby query yet, so radar does not invent
 profiles and currently reports that no connected results are available. Before
 production use, implement a server-side authenticated query/RPC that accepts a
 short-lived location fix and returns only opted-in, unblocked, audience-eligible
@@ -124,7 +118,7 @@ returns only `id`, `display_name`, `photo_url`, `distance_range`, and visible
 social links; and never returns coordinates or direction. The server must rate
 limit requests, enforce foreground-only short-lived fixes, and delete/expire
 location data on the selected timer. Add the matching SDK and RLS policies only
-after choosing the project’s actual backend; this package currently contains
+using Supabase; this package currently contains
 none. QR discovery remains independent of location.
 
 ## 7. Appearance setting
@@ -180,7 +174,7 @@ Profile details render only contact links explicitly returned with `visible: tru
 
 ## Edit profile
 
-The Profile tab opens a locally saved profile editor with photo selection/capture, a display name, short bio, and optional social accounts for Facebook, Telegram, X, TikTok, Instagram, LINE, WhatsApp, and WeChat. Each account has its own visibility switch, and the preview shows only non-empty links that are marked visible. No phone number is requested or verified. Profile values are stored on-device for this demo.
+The Profile tab opens a Supabase-backed profile editor with photo selection/capture, a display name, short bio, and optional social accounts for Facebook, Telegram, X, TikTok, Instagram, LINE, WhatsApp, and WeChat. Each account has its own visibility switch, and the preview shows only non-empty links that are marked visible. No phone number is requested or verified. Profile values and private preferences are stored in Supabase with owner-only access. Photos use private Storage and temporary signed URLs.
 
 ## Inbox
 

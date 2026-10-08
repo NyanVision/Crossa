@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
+import { emptyProfile, saveProfile } from "@/services/profileStorage";
+import { socialProfileUrl } from "@/services/socialLinks";
 import { TextField } from "@/components/TextField";
 import { pickProfilePhoto, takeProfilePhoto } from "@/services/imageUpload";
 import { type Palette } from "@/theme/colors";
@@ -9,12 +11,28 @@ import { useThemedStyles } from "@/context/AppearanceContext";
 
 export function OnboardingScreen() {
   const styles = useThemedStyles(makeStyles);
-  const { completeOnboarding } = useAuth();
+  const { userId, completeOnboarding } = useAuth();
+  const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [instagram, setInstagram] = useState("");
   const [telegram, setTelegram] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  const finish = async () => {
+    setSaving(true);
+    try {
+      const profile = { ...emptyProfile(userId), name, bio, photoUri };
+      profile.links = profile.links.map(link => {
+        const handle = link.platform === 'instagram' ? instagram.trim() : link.platform === 'telegram' ? telegram.trim() : '';
+        if (handle && !socialProfileUrl(link.platform, handle)) throw new Error('Enter a valid social username or profile URL.');
+        return { ...link, handle, hidden: !handle };
+      });
+      await saveProfile(profile);
+      await completeOnboarding();
+    } catch (error) { Alert.alert('Couldn’t save profile', error instanceof Error ? error.message : 'Please try again.'); }
+    finally { setSaving(false); }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
@@ -45,7 +63,7 @@ export function OnboardingScreen() {
       <TextField label="Instagram" value={instagram} onChangeText={setInstagram} placeholder="@username" />
       <TextField label="Telegram" value={telegram} onChangeText={setTelegram} placeholder="@username" />
 
-      <Button label="Continue" variant="primary" onPress={completeOnboarding} />
+      <Button label="Continue" variant="primary" onPress={finish} loading={saving} />
     </ScrollView>
   );
 }

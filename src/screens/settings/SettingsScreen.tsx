@@ -142,7 +142,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   const confirmSignOut = () => Alert.alert("Sign out of CatchYa?", "You can sign back in at any time.", [
     { text: "Cancel", style: "cancel" },
-    { text: "Sign out", style: "destructive", onPress: () => { void signOut(); } },
+    { text: "Sign out", style: "destructive", onPress: () => { void signOut().catch(() => Alert.alert("Could not sign out", "Check your connection and try again.")); } },
   ]);
 
   const confirmDelete = () => Alert.alert("Delete your account?", "This removes your saved profile, chats, requests, and safety data from this device. In this demo, account deletion is local; deleting an online account requires a connected account service.", [
