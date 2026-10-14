@@ -1,14 +1,40 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { InboxConversation, InboxStatus } from "@/types";
+import type { ChatMessage, InboxConversation, InboxStatus } from "@/types";
+import { requireSupabase } from "@/services/supabase";
+import { signedProfilePhotoUrl } from "@/services/profileStorage";
 
-const INBOX_KEY = "catchya:inboxConversations";
+interface InboxRow {
+  id: string;
+  profile_id: string;
+  display_name: string;
+  photo_path: string | null;
+  status: InboxStatus;
+  first_message: string | null;
+  last_message: string | null;
+  updated_at: string;
+  unread_count: number;
+  profile_preview: { bio?: string | null; genderLabel?: string | null } | null;
+}
 
 export async function loadInbox(): Promise<InboxConversation[]> {
-  const raw = await AsyncStorage.getItem(INBOX_KEY);
-  if (!raw) return [];
-  const parsed = JSON.parse(raw) as unknown;
-  if (!Array.isArray(parsed)) return [];
-  return parsed.filter(isConversation);
+  const { data, error } = await requireSupabase().rpc("my_inbox");
+  if (error) throw error;
+  const rows = (data ?? []) as InboxRow[];
+  return Promise.all(rows.map(async (row) => ({
+    id: row.id,
+    profileId: row.profile_id,
+    displayName: row.display_name,
+    photoUri: await signedProfilePhotoUrl(row.photo_path),
+    lastMessage: row.last_message ?? "",
+    updatedAt: row.updated_at,
+    unreadCount: Number(row.unread_count ?? 0),
+    status: row.status,
+    messages: [],
+    firstMessage: row.first_message ?? "",
+    profilePreview: {
+      bio: row.profile_preview?.bio ?? "",
+      interests: [],
+    },
+  })));
 }
 
 export async function loadInboxByStatus(status: InboxStatus): Promise<InboxConversation[]> {
@@ -16,66 +42,61 @@ export async function loadInboxByStatus(status: InboxStatus): Promise<InboxConve
 }
 
 export async function acceptInboxRequest(id: string): Promise<boolean> {
-  const conversations = await loadInbox();
-  const request = conversations.find((item) => item.id === id && item.status === "request");
-  if (!request) return false;
-  const initialMessage = request.firstMessage?.trim() || request.messages[0]?.text || request.lastMessage?.trim() || "";
-  const messages = request.messages.length || !initialMessage
-    ? request.messages
-    : [{ id: `${id}-first`, from: "them" as const, text: initialMessage }];
-  await storeInbox(conversations.map((item) => item.id === id ? {
-    ...item,
-    status: "chat" as const,
-    unreadCount: 0,
-    messages,
-    lastMessage: item.lastMessage || initialMessage,
-  } : item));
-  return true;
+  const { data, error } = await requireSupabase().rpc("respond_to_connection_request", {
+    p_request_id: id,
+    p_accept: true,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 export async function declineInboxRequest(id: string): Promise<void> {
-  const conversations = await loadInbox();
-  await storeInbox(conversations.filter((item) => item.id !== id));
-}
-
-export async function removeInboxConversation(id: string): Promise<void> {
-  const conversations = await loadInbox();
-  await storeInbox(conversations.filter((item) => item.id !== id));
+  const { data, error } = await requireSupabase().rpc("respond_to_connection_request", {
+    p_request_id: id,
+    p_accept: false,
+  });
+  if (error) throw error;
+  if (data !== true) throw new Error("This request has already been handled.");
 }
 
 export async function markInboxConversationRead(id: string): Promise<void> {
-  const conversations = await loadInbox();
-  await storeInbox(conversations.map((item) => item.id === id ? { ...item, unreadCount: 0 } : item));
+  const { error } = await requireSupabase().rpc("mark_conversation_read", { p_request_id: id });
+  if (error) throw error;
 }
 
-export async function appendInboxMessage(id: string, text: string): Promise<InboxConversation["messages"][number] | false> {
-  const conversations = await loadInbox();
-  const chat = conversations.find((item) => item.id === id);
-  if (!chat || chat.status !== "chat") return false;
-  const now = new Date().toISOString();
-  const message = { id: `${id}-${Date.now()}`, from: "me" as const, text, createdAt: now };
-  await storeInbox(conversations.map((item) => item.id === id ? {
-    ...item,
-    lastMessage: text,
-    updatedAt: now,
-    unreadCount: 0,
-    messages: [...item.messages, message],
-  } : item));
-  return message;
+export async function loadConversationMessages(requestId: string): Promise<ChatMessage[]> {
+  const client = requireSupabase();
+  const [{ data: { user }, error: authError }, { data, error }] = await Promise.all([
+    client.auth.getUser(),
+    client.from("messages").select("id,sender_id,body,created_at")
+      .eq("request_id", requestId).order("created_at", { ascending: true }),
+  ]);
+  if (authError) throw authError;
+  if (error) throw error;
+  if (!user) throw new Error("Sign in again to open this conversation.");
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    from: row.sender_id === user.id ? "me" : "them",
+    text: row.body,
+    createdAt: row.created_at,
+  }));
 }
 
-export async function storeInbox(conversations: InboxConversation[]): Promise<void> {
-  await AsyncStorage.setItem(INBOX_KEY, JSON.stringify(conversations));
+export async function appendInboxMessage(requestId: string, text: string): Promise<ChatMessage> {
+  const client = requireSupabase();
+  const { data: { user }, error: authError } = await client.auth.getUser();
+  if (authError) throw authError;
+  if (!user) throw new Error("Sign in again to send a message.");
+  const { data, error } = await client.from("messages").insert({
+    request_id: requestId,
+    sender_id: user.id,
+    body: text.trim(),
+  }).select("id,sender_id,body,created_at").single();
+  if (error) throw error;
+  return { id: data.id, from: "me", text: data.body, createdAt: data.created_at };
 }
 
-function isConversation(value: unknown): value is InboxConversation {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Partial<InboxConversation>;
-  return typeof item.id === "string"
-    && typeof item.profileId === "string"
-    && typeof item.displayName === "string"
-    && (item.status === "chat" || item.status === "request")
-    && typeof item.lastMessage === "string"
-    && typeof item.updatedAt === "string"
-    && Array.isArray(item.messages);
+/** Blocking removes access server-side; the inbox RPC will omit the row on the next refresh. */
+export async function removeInboxConversation(_id: string): Promise<void> {
+  return;
 }

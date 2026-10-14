@@ -9,8 +9,11 @@ export interface SocialLink {
 export interface CurrentUser {
   id: string;
   name: string;
+  age: number | null;
   bio: string;
   photoUri: string | null;
+  /** Private Storage object path; never display this value as a URL. */
+  photoPath: string | null;
   links: SocialLink[];
   discoveryEnabled: boolean;
 }
@@ -20,7 +23,7 @@ export interface Person {
   name: string;
   initials: string;
   color: string;
-  distanceLabel: string; // rounded, never exact — e.g. "~1.2 km away"
+  distanceLabel: string;
   bio: string;
   tags: string[];
   links: SocialLink[];
@@ -62,11 +65,12 @@ export interface PublicContactLink {
 export interface PublicProfile {
   id: string;
   displayName: string;
-  photoUrl: string;
+  age: number | null;
+  photoUrl: string | null;
   distanceRange: string;
   contactLinks: PublicContactLink[];
   /** Present only when the profile owner explicitly chose to show their gender. */
-  genderLabel?: string;
+  genderLabel?: string | null;
 }
 
 export type InboxStatus = "chat" | "request";

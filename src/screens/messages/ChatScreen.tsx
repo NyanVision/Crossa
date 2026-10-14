@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { appendInboxMessage, loadInbox, markInboxConversationRead, removeInboxConversation } from "@/services/inbox";
+import { appendInboxMessage, loadConversationMessages, loadInbox, markInboxConversationRead, removeInboxConversation } from "@/services/inbox";
+import { requireSupabase } from "@/services/supabase";
 import { recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
 import { type Palette, radii } from "@/theme/colors";
 import { useTheme, useThemedStyles } from "@/context/AppearanceContext";
@@ -28,12 +29,16 @@ export function ChatScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     let active = true;
-    loadInbox().then((items) => {
+    loadInbox().then(async (items) => {
       const found = items.find((item) => item.id === route.params.chatId && item.status === "chat") ?? null;
       if (!active) return;
       setConversation(found);
-      setMessages(found ? found.messages.map((message) => ({ ...message, createdAt: message.createdAt ?? found.updatedAt })) : []);
-      if (found) void markInboxConversationRead(found.id);
+      if (found) {
+        const savedMessages = await loadConversationMessages(found.id);
+        if (!active) return;
+        setMessages(savedMessages);
+        void markInboxConversationRead(found.id);
+      } else setMessages([]);
     }).catch(() => {
       if (active) {
         setConversation(null);
@@ -42,6 +47,24 @@ export function ChatScreen({ route, navigation }: Props) {
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [route.params.chatId]);
+
+  useEffect(() => {
+    if (!conversation) return;
+    const client = requireSupabase();
+    const channel = client.channel(`catchya-messages-${conversation.id}`)
+      .on("postgres_changes", {
+        event: "INSERT", schema: "public", table: "messages",
+        filter: `request_id=eq.${conversation.id}`,
+      }, async (payload) => {
+        const row = payload.new as { id: string; sender_id: string; body: string; created_at: string };
+        const { data: { user } } = await client.auth.getUser();
+        const message: ChatMessage = { id: row.id, from: row.sender_id === user?.id ? "me" : "them", text: row.body, createdAt: row.created_at };
+        setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
+        if (user && row.sender_id !== user.id) void markInboxConversationRead(conversation.id);
+      })
+      .subscribe();
+    return () => { void client.removeChannel(channel); };
+  }, [conversation?.id]);
 
   const send = async () => {
     const messageText = text.trim();
@@ -71,7 +94,7 @@ export function ChatScreen({ route, navigation }: Props) {
       { text: "Report", style: "destructive", onPress: async () => {
         try {
           await recordProfileReport(conversation.profileId);
-          Alert.alert("Report saved", "This report is stored on this device. It will reach moderation when reporting is connected.");
+          Alert.alert("Report saved", "Your report has been submitted for review.");
         } catch { Alert.alert("Report not saved", "Please try again."); }
       } },
     ]);

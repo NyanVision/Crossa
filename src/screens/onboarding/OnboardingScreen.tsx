@@ -1,51 +1,66 @@
 import React, { useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { pickProfilePhoto, takeProfilePhoto } from "@/services/imageUpload";
+import { emptyProfile, saveProfile } from "@/services/profileStorage";
 import { type Palette } from "@/theme/colors";
 import { useThemedStyles } from "@/context/AppearanceContext";
 
 export function OnboardingScreen() {
   const styles = useThemedStyles(makeStyles);
-  const { completeOnboarding } = useAuth();
+  const { completeOnboarding, userId } = useAuth();
   const [name, setName] = useState("");
+  const [age, setAge] = useState("");
   const [bio, setBio] = useState("");
   const [instagram, setInstagram] = useState("");
   const [telegram, setTelegram] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim()) { Alert.alert("Add a display name", "Enter the name you want people to see on your profile."); return; }
+    const numericAge = age.trim() ? Number(age) : null;
+    if (numericAge !== null && (!Number.isInteger(numericAge) || numericAge < 13 || numericAge > 120)) {
+      Alert.alert("Check your age", "Enter an age between 13 and 120, or leave it blank.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const profile = emptyProfile(userId);
+      profile.name = name.trim();
+      profile.age = numericAge;
+      profile.bio = bio.trim();
+      profile.photoUri = photoUri;
+      profile.links = profile.links.map((link) => link.platform === "instagram"
+        ? { ...link, handle: instagram.trim(), hidden: true }
+        : link.platform === "telegram" ? { ...link, handle: telegram.trim(), hidden: true } : link);
+      await saveProfile(profile);
+      completeOnboarding();
+    } catch {
+      Alert.alert("Couldn’t save your profile", "Check your connection and try again.");
+    } finally { setSaving(false); }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Set up your profile</Text>
-
       <View style={styles.photoRow}>
-        <View style={styles.photoPreview}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.photoImg} />
-          ) : (
-            <Text style={styles.photoInitial}>{(name || "Y").slice(0, 1).toUpperCase()}</Text>
-          )}
-        </View>
+        <View style={styles.photoPreview}>{photoUri ? <Image source={{ uri: photoUri }} style={styles.photoImg} /> : <Text style={styles.photoInitial}>{(name || "Y").slice(0, 1).toUpperCase()}</Text>}</View>
         <View style={{ gap: 8, flex: 1 }}>
           <Button label="Choose photo" onPress={async () => setPhotoUri((await pickProfilePhoto()) ?? photoUri)} />
           <Button label="Take photo" onPress={async () => setPhotoUri((await takeProfilePhoto()) ?? photoUri)} />
         </View>
       </View>
-
-      <TextField label="Display name" value={name} onChangeText={setName} placeholder="How others will see you" />
-      <TextField label="Short bio" value={bio} onChangeText={setBio} placeholder="One line about you" />
-
+      <TextField label="Display name" value={name} onChangeText={setName} placeholder="How others will see you" maxLength={40} />
+      <TextField label="Age (optional)" value={age} onChangeText={(value) => setAge(value.replace(/\D/g, "").slice(0, 3))} placeholder="13 or older" keyboardType="number-pad" maxLength={3} />
+      <TextField label="Short bio" value={bio} onChangeText={setBio} placeholder="One line about you" maxLength={120} />
       <Text style={styles.sectionTitle}>Add social links</Text>
-      <Text style={styles.hint}>
-        You type these in yourself — CatchYa never pulls from your accounts. You can hide any link
-        later.
-      </Text>
+      <Text style={styles.hint}>You type these in yourself — CatchYa never pulls from your accounts. You can hide any link later. Social links are never used to sign in.</Text>
       <TextField label="Instagram" value={instagram} onChangeText={setInstagram} placeholder="@username" />
       <TextField label="Telegram" value={telegram} onChangeText={setTelegram} placeholder="@username" />
-
-      <Button label="Continue" variant="primary" onPress={completeOnboarding} />
+      <Button label="Continue" variant="primary" loading={saving} disabled={saving} onPress={() => void save()} />
     </ScrollView>
   );
 }

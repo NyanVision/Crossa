@@ -44,7 +44,7 @@ export function MessagesScreen({ navigation }: Props) {
         { text: "Report", style: "destructive", onPress: async () => {
           try {
             await recordProfileReport(conversation.profileId);
-            Alert.alert("Report saved", "This report is stored on this device. It will reach moderation when reporting is connected.");
+            Alert.alert("Report saved", "Your report has been submitted for review.");
           } catch { Alert.alert("Report not saved", "Please try again."); }
         } },
       ]) },

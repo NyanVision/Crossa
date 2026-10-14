@@ -1,20 +1,15 @@
-# CatchYa authentication testing (no backend)
+# CatchYa authentication and backend testing
 
-1. Start CatchYa and open **Sign in**.
-2. Tap **Continue with email** to expand the email form.
-3. For a new device, tap **Create one**, enter a valid email and a password with at least 8 characters, and confirm it.
-4. The app creates a local test account and proceeds through onboarding.
-5. Sign out from Settings, then sign in with the same email and password.
+CatchYa now uses Supabase Auth rather than the former device-only test-account store. Follow the Supabase setup, email/Google provider instructions, environment configuration, and manual test checklist in [README.md](README.md#backend-features-and-privacy).
 
-Test accounts are stored on this device only. Passwords are salted and SHA-256 hashed, but AsyncStorage is not suitable for production secrets. There is no email verification, password reset email, or server-side identity. Use test credentials only. Clearing app storage deletes the local accounts. Google sign-in is separate and requires OAuth configuration.
+Quick start:
 
-## Files
+1. Create a Supabase project and apply the migration with `npx supabase link --project-ref YOUR_PROJECT_REF` and `npx supabase db push`.
+2. Configure email/password and, if desired, Google OAuth in Supabase Auth. Add `catchya://auth/callback` to the Supabase redirect allow-list.
+3. Copy `.env.example` to `.env`, set only the project URL and publishable key, and restart Expo.
+4. Run `npm run typecheck`, `npm run lint`, then follow the manual test checklist in README.
+5. To run pgTAP database permission tests locally, install Docker, then run `npx supabase start`, `npx supabase db reset`, and `npx supabase test db`.
 
-- `src/context/AuthContext.tsx` — auth screen state and local sign-in lifecycle
-- `src/services/localTestAuth.ts` — local test account create, verify, and delete
-- `src/screens/auth/SignInScreen.tsx`
-- `src/screens/auth/CreateAccountScreen.tsx`
-- `src/screens/auth/ResetPasswordScreen.tsx`
-- `src/navigation/AuthNavigator.tsx`
-- `src/components/Button.tsx`, `TextField.tsx`, `Banner.tsx`
-- `src/theme/colors.ts`
+Google OAuth requires a configured Supabase Google provider and a native development build with the CatchYa URL scheme. Social profile links are data only and are not authentication methods.
+
+The former local test-auth implementation is no longer used by the app. Do not enter service-role keys in Expo variables or client code.

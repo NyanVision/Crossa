@@ -1,0 +1,3 @@
+-- CatchYa intentionally has no demo users or nearby profiles in its seed data.
+-- Create test accounts through the existing sign-up screen so the auth trigger
+-- provisions profiles and preferences with realistic identities and policies.

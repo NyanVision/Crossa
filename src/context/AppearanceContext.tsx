@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Appearance } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { darkColors, lightColors, type Palette } from "@/theme/colors";
+import { useAuth } from "@/context/AuthContext";
+import { loadUserSettings, saveUserSettings } from "@/services/userSettings";
 
 export type AppearanceChoice = "light" | "dark" | "system";
 export type ResolvedScheme = "light" | "dark";
@@ -9,7 +11,6 @@ const KEY = "catchya:appearance";
 
 interface AppearanceValue {
   choice: AppearanceChoice;
-  /** The scheme actually in effect (System default resolved to the device setting). */
   scheme: ResolvedScheme;
   colors: Palette;
   ready: boolean;
@@ -17,19 +18,17 @@ interface AppearanceValue {
 }
 const Context = createContext<AppearanceValue | null>(null);
 
-// Applies the choice to the native layer too, so native dialogs, alerts and
-// the keyboard follow the selected mode. "unspecified" hands control back to the device.
 function applyNative(choice: AppearanceChoice) {
   Appearance.setColorScheme(choice === "system" ? "unspecified" : choice);
 }
 
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
+  const { userId } = useAuth();
   const [choice, setChoiceState] = useState<AppearanceChoice>("system");
   const [ready, setReady] = useState(false);
   const [deviceScheme, setDeviceScheme] = useState<ResolvedScheme>(Appearance.getColorScheme() === "dark" ? "dark" : "light");
 
   useEffect(() => {
-    // Fires when the device appearance changes (only while following System default).
     const sub = Appearance.addChangeListener(({ colorScheme }) => setDeviceScheme(colorScheme === "dark" ? "dark" : "light"));
     let active = true;
     AsyncStorage.getItem(KEY).then((saved) => {
@@ -42,12 +41,25 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     return () => { active = false; sub.remove(); };
   }, []);
 
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    loadUserSettings(userId).then(async (settings) => {
+      if (!active) return;
+      applyNative(settings.appearance);
+      setChoiceState(settings.appearance);
+      try { await AsyncStorage.setItem(KEY, settings.appearance); } catch { /* cloud setting still applies */ }
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [userId]);
+
   const setChoice = useCallback(async (next: AppearanceChoice) => {
     applyNative(next);
     setChoiceState(next);
     setDeviceScheme(Appearance.getColorScheme() === "dark" ? "dark" : "light");
     try { await AsyncStorage.setItem(KEY, next); } catch { /* choice still applies for this session */ }
-  }, []);
+    if (userId) await saveUserSettings(userId, { appearance: next });
+  }, [userId]);
 
   const scheme: ResolvedScheme = choice === "system" ? deviceScheme : choice;
   const value = useMemo<AppearanceValue>(() => ({
@@ -67,7 +79,6 @@ export function useTheme() {
   return { colors, scheme, isDark: scheme === "dark" };
 }
 
-/** Builds a StyleSheet from the active palette; rebuilt only when the theme changes. */
 export function useThemedStyles<T>(factory: (colors: Palette) => T): T {
   const { colors } = useAppAppearance();
   return useMemo(() => factory(colors), [colors]);

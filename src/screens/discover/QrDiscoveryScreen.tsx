@@ -4,7 +4,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import QRCode from "react-native-qrcode-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
-import { getProfileCodeFromQr, getProfileQrPayload } from "@/services/profileQr";
+import { getProfileCodeFromQr, getProfileQrPayload, resolveProfileQr } from "@/services/profileQr";
 import { type Palette, radii } from "@/theme/colors";
 import { useTheme, useThemedStyles } from "@/context/AppearanceContext";
 import { useIsFocused } from "@react-navigation/native";
@@ -22,6 +22,7 @@ export function QrDiscoveryScreen({ navigation, route }: Props) {
   const [payload, setPayload] = useState("");
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [resolving, setResolving] = useState(false);
 
   useEffect(() => {
     if (route.params?.startInScan) setMode("scan");
@@ -52,18 +53,29 @@ export function QrDiscoveryScreen({ navigation, route }: Props) {
       ]);
       return;
     }
-    Alert.alert("CatchYa profile code found", `Profile code: ${profileCode.slice(0, 8)}…
-
-QR discovery works without location access.`, [
-      { text: "Scan another", onPress: () => setScanned(false) },
-      { text: "Done", onPress: () => setMode("choose") },
-    ]);
+    setResolving(true);
+    void resolveProfileQr(data).then((profile) => {
+      if (!profile) {
+        Alert.alert("Profile unavailable", "This QR code may be invalid, blocked, or belong to an unavailable account.", [
+          { text: "Scan another", onPress: () => setScanned(false) },
+          { text: "Done", onPress: () => setMode("choose") },
+        ]);
+        return;
+      }
+      setMode("choose");
+      navigation.navigate("ProfileDetail", { profile });
+    }).catch(() => {
+      Alert.alert("Couldn’t load profile", "Check your connection and try scanning again.", [
+        { text: "Scan again", onPress: () => setScanned(false) },
+        { text: "Done", onPress: () => setMode("choose") },
+      ]);
+    }).finally(() => setResolving(false));
   };
 
   if (mode === "scan") {
     return <View style={styles.screen}>
       <View style={styles.topBar}><Pressable onPress={() => setMode("choose")} style={styles.backBtn} accessibilityLabel="Back"><Ionicons name="arrow-back" size={20} color={colors.text} /></Pressable><Text style={styles.topTitle}>Scan a QR code</Text><View style={{ width: 38 }} /></View>
-      {!isFocused ? <View style={styles.cameraWrap} /> : !permission?.granted ? <View style={styles.permissionWrap}><View style={styles.iconBubble}><Ionicons name="camera-outline" size={26} color={colors.accent} /></View><Text style={styles.heading}>Allow camera access to scan</Text><Text style={styles.body}>Camera access is used only when you choose to scan. Your location stays off.</Text><Button label="Allow camera access" variant="primary" onPress={beginScan} /><Button label="Cancel" onPress={() => setMode("choose")} style={{ marginTop: 10 }} /></View> : <View style={styles.cameraWrap}><CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={scanned ? undefined : onBarcodeScanned} /><View pointerEvents="none" style={styles.scanOverlay}><View style={styles.scanFrame} /><Text style={styles.scanHint}>Place a CatchYa QR code inside the frame</Text></View></View>}
+      {!isFocused ? <View style={styles.cameraWrap} /> : !permission?.granted ? <View style={styles.permissionWrap}><View style={styles.iconBubble}><Ionicons name="camera-outline" size={26} color={colors.accent} /></View><Text style={styles.heading}>Allow camera access to scan</Text><Text style={styles.body}>Camera access is used only when you choose to scan. Your location stays off.</Text><Button label="Allow camera access" variant="primary" onPress={beginScan} /><Button label="Cancel" onPress={() => setMode("choose")} style={{ marginTop: 10 }} /></View> : <View style={styles.cameraWrap}><CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={scanned || resolving ? undefined : onBarcodeScanned} /><View pointerEvents="none" style={styles.scanOverlay}><View style={styles.scanFrame} /><Text style={styles.scanHint}>{resolving ? "Loading CatchYa profile…" : "Place a CatchYa QR code inside the frame"}</Text></View></View>}
     </View>;
   }
 

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { useAuth } from "@/context/AuthContext";
+import { isSupabaseConfigured } from "@/services/supabase";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Banner } from "@/components/Banner";
@@ -22,34 +23,23 @@ export function CreateAccountScreen({ navigation }: Props) {
 
   const onSubmit = () => {
     clearError();
-    if (password !== confirm) {
-      setLocalError("Passwords don't match.");
-      return;
-    }
+    if (password !== confirm) { setLocalError("Passwords don't match."); return; }
     setLocalError(null);
-    createAccount(email, password);
+    void createAccount(email, password);
   };
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
-      <Text style={styles.notice}>Local testing mode · accounts stay on this device and are not verified online.</Text>
+      {!isSupabaseConfigured ? <Text style={styles.notice}>Backend not configured yet. Add your Supabase URL and publishable key to the local .env file.</Text> : null}
       <Banner message={localError ?? error} />
-      <Button label="Continue with Google" loading={loading} onPress={() => { clearError(); signInWithGoogle(); }} icon={<Ionicons name="logo-google" size={18} color="#4285F4" />} />
+      <Button label="Continue with Google" loading={loading} disabled={!isSupabaseConfigured || loading} onPress={() => { clearError(); void signInWithGoogle(); }} icon={<Ionicons name="logo-google" size={18} color="#4285F4" />} />
       <Text style={styles.hint}>Or create an account with email</Text>
-      <TextField label="Email" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="you@example.com" />
+      <TextField label="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} placeholder="you@example.com" />
       <TextField label="Password" secureTextEntry value={password} onChangeText={setPassword} placeholder="At least 8 characters" />
       <TextField label="Confirm password" secureTextEntry value={confirm} onChangeText={setConfirm} placeholder="Re-enter password" />
-      <Button label="Create account" variant="primary" loading={loading} onPress={onSubmit} />
-      <Text style={styles.link} onPress={() => navigation.navigate("SignIn")}>
-        Already have an account? Sign in
-      </Text>
-      <Text style={styles.hint}>
-        By creating an account, you agree to CatchYa's{" "}
-        <Text style={styles.linkInline} onPress={() => navigation.navigate("PrivacyPolicy")}>
-          Privacy Policy
-        </Text>
-        .
-      </Text>
+      <Button label="Create account" variant="primary" loading={loading} disabled={!isSupabaseConfigured || loading} onPress={onSubmit} />
+      <Text style={styles.link} onPress={() => navigation.navigate("SignIn")}>Already have an account? Sign in</Text>
+      <Text style={styles.hint}>By creating an account, you agree to CatchYa's <Text style={styles.linkInline} onPress={() => navigation.navigate("PrivacyPolicy")}>Privacy Policy</Text>.</Text>
     </ScrollView>
   );
 }

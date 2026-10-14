@@ -1,212 +1,147 @@
-# CatchYa — React Native / Expo / TypeScript
+# CatchYa — Expo / React Native / TypeScript
 
-A single shared codebase for iOS and Android, built with Expo, React Navigation,
-and TypeScript. Platform conventions (header styles, tab bar behavior, permission
-dialogs) are handled automatically by the navigation and Expo modules below,
-with a few explicit `Platform.select` touches where noted in the code.
+CatchYa is an existing Expo React Native app with TypeScript and React Navigation. The current screens, navigation, styles, and component layout remain in place; this backend integration replaces local-only service implementations with Supabase Auth, Postgres, Storage, and Realtime.
 
-## What's implemented
+## Existing frontend structure
 
-- **Navigation** — `@react-navigation/native` with a native stack for auth and
-  per-tab stacks, plus a bottom tab bar (`AppTabs.tsx`, `AuthNavigator.tsx`).
-- **Authentication** — a text-only welcome screen (`WelcomeScreen.tsx`, no
-  photo collage) leading into `expo-auth-session` (Google), email/password,
-  account creation, and password reset, all with loading and error states
-  (`AuthContext.tsx`, `screens/auth/*`). No phone-number or SMS sign-in.
-  Facebook/Telegram/X/TikTok/Instagram are shown as clearly disabled "coming
-  soon" options — see below to wire one up for real.
-- **Photo uploads** — `expo-image-picker`, with both photo-library and camera
-  flows and permission handling (`services/imageUpload.ts`).
-- **Location permission** — `expo-location`, foreground-only, used solely to
-  compute a broad distance range (`services/location.ts`). No exact
-  coordinates are ever displayed.
-- **Push notifications** — `expo-notifications` + `expo-device`, with
-  Android notification channel setup (`services/notifications.ts`).
+- `App.tsx` mounts the existing auth, appearance, and root navigation providers.
+- `src/navigation/` contains auth navigation and the three-tab app with nested screen stacks.
+- `src/screens/` contains auth, onboarding, discovery/QR, messages, profile, and settings screens.
+- `src/components/` contains reusable forms, buttons, banners, and empty states.
+- `src/context/` manages auth/session and appearance.
+- `src/services/` contains the data/API boundary for Supabase, profiles, discovery, inbox, safety, QR, and settings.
+- `supabase/migrations/` contains the database schema and RLS policies; `supabase/functions/delete-account/` contains the server-side permanent-delete operation.
 
-All of these packages are Expo-managed and work on both iOS and Android from
-one codebase.
+## Backend features and privacy
 
-## 1. Install prerequisites (one-time, on your computer)
+- **Auth:** Supabase email/password and Google OAuth. Social profile links (Facebook, Telegram, X, TikTok, Instagram, LINE, WhatsApp, WeChat) are independent profile data, not login methods.
+- **Direct Auth providers:** Supabase Auth directly documents Google and providers including Apple, Azure, Bitbucket, Discord, Facebook, Figma, GitHub, GitLab, Kakao, Keycloak, LinkedIn, Notion, Slack, Spotify, Twitter/X, Twitch, WorkOS, Zoom, and custom OAuth/OIDC. CatchYa currently exposes only Google plus email/password; another provider is not enabled by merely storing a social profile link.
+- **Profiles:** display name, optional photo, age, bio, private gender and meet preferences, and individually controlled public social links. Photos use a private Storage bucket and short-lived signed URLs.
+- **Nearby discovery:** off until the user turns it on; choices are 15 minutes, 30 minutes, or 1 hour. The selected end time is stored server-side, so expiry still applies after the app is closed. Foreground location is requested only for enabling/scanning. Exact coordinates are stored only in the non-API `private.discovery_locations` table while discovery is active, never returned to other users, and deleted on opt-out/expiry. The server applies mutual meet-preference filtering and returns only coarse distance bands. Automatic timer cleanup uses `pg_cron` when available; RPCs also check/expire sessions when used.
+- **QR:** opaque, server-issued UUID tokens; QR profile lookup works independently of nearby location permission.
+- **Messages:** requests must be accepted before a private chat can be read or written. RLS enforces the participant and accepted-status checks; inserts also use the authenticated sender ID. `public.messages` is enabled for Supabase Realtime.
+- **Safety:** block and report operations persist to Supabase. Blocking makes requests and conversations unavailable to both participants.
+- **Account controls:** deactivation hides the account and turns off discovery but retains data for reactivation. Permanent deletion uses an authenticated Edge Function, deletes private profile images, and deletes the Auth user so foreign-key cascades remove associated rows.
+- **RLS:** enabled on every app-owned table, including the private location/grant tables. Client code uses only the project URL and publishable key. Never place a service-role key in the app or `.env`.
 
-- [Node.js](https://nodejs.org) 20.19 or newer (required by the current Expo SDK)
-- `npm install -g expo-cli` is **not** required — this project uses the
-  local Expo CLI via `npx`.
-- The **Expo Go** app on your phone:
-  - iPhone: install "Expo Go" from the App Store.
-  - Android: install "Expo Go" from the Google Play Store.
+## 1. Create a Supabase project
 
-## 2. Install dependencies
+1. Go to [supabase.com/dashboard](https://supabase.com/dashboard), sign in, choose **New project**, select an organization, and enter a project name, database password, and region.
+2. Wait for project provisioning. Open the project’s **Connect** dialog or **Project Settings → API** and copy the **Project URL** and **Publishable key** (`sb_publishable_…`). These are the only Supabase values needed by the Expo client.
+3. Keep the database password and any secret/service-role keys out of the client and out of chat. The permanent-delete function obtains its privileged key from the Edge Function runtime only.
+
+## 2. Apply the database migration
+
+Install/use the Supabase CLI (the project does not apply migrations automatically):
 
 ```bash
-cd catchya-app
-npm.cmd install
+npm install
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase db push
 ```
 
-## 3. Run the app
+`YOUR_PROJECT_REF` is the project reference in the Dashboard URL. `db push` applies both timestamped migrations in order: the initial `20261014000000_catchya_backend.sql` schema and `20261014100000_add_30_minute_discovery_duration.sql` forward migration. The forward migration also upgrades a database that already has the initial CatchYa schema. No demo accounts or sample profiles are inserted; new profiles/preferences are provisioned by the Auth-user trigger.
+
+To run the database locally instead of modifying the linked project:
 
 ```bash
-npx.cmd expo start --tunnel
+npx supabase start
+npx supabase db reset
+npx supabase test db
 ```
 
-This starts the Expo development server and shows a QR code. The project uses
-Expo SDK 57, so use the current Expo Go app on your phone.
+Local Supabase requires Docker. The migration attempts to enable `pg_cron` for minute-level cleanup when available; session expiry is also enforced by the discovery RPCs.
 
-### On an Android device
-1. Make sure your phone and computer are on the same Wi-Fi network.
-2. Open **Expo Go** on your phone and scan the QR code from the terminal
-   (Expo Go has a built-in scanner on Android).
-3. The app bundles and opens automatically. Reload with a shake gesture →
-   "Reload", or press `r` in the terminal.
+## 3. Configure Auth
 
-### On an iPhone
-1. Same Wi-Fi network as your computer.
-2. Open the iPhone **Camera** app and point it at the QR code — it will
-   show a notification to open in Expo Go.
-3. The app bundles and opens automatically. Reload with a shake gesture →
-   "Reload", or press `r` in the terminal.
+In Supabase Dashboard → **Authentication → URL Configuration**, add `catchya://auth/callback` to **Redirect URLs**. The app scheme is already `catchya` in `app.json`.
 
-### Using simulators/emulators instead of a physical device
-- iOS Simulator (macOS + Xcode required): press `i` in the terminal after
-  `npx expo start`, or run `npx expo start --ios`.
-- Android Emulator (Android Studio required, with a virtual device already
-  created): press `a` in the terminal, or run `npx expo start --android`.
-- Note: push notifications only work on physical devices, not simulators
-  or emulators. Android remote push notifications require a development build;
-  Expo Go can test local notifications only (`services/notifications.ts`).
+### Email and password
 
-## 4. Testing permission flows
+In **Authentication → Sign In / Providers → Email**, enable email/password. For practical testing, decide whether email confirmation should be required. If enabled, use a reachable test mailbox, click the confirmation link, then sign in. Configure the email templates/SMTP before production use; the default project email service has sending limits.
 
-- **Location**: tapping "Turn on discovery" on the Discover tab triggers the
-  native OS permission dialog on both platforms.
-- **Photos/Camera**: "Choose photo" / "Take photo" during onboarding trigger
-  the native photo-library or camera permission dialog.
-- **Notifications**: toggling "Push notifications" in Settings requests
-  permission and registers for an Expo push token. Android remote push
-  notifications require a development build; Expo Go can test local
-  notifications only.
-- If you deny a permission and want to test the flow again, reset it from
-  the OS Settings app: iOS → Settings → CatchYa; Android → Settings → Apps →
-  CatchYa → Permissions.
+### Google OAuth (optional)
 
-## 5. Email authentication for local testing
+1. In [Google Cloud Console](https://console.cloud.google.com/), create/configure an OAuth consent screen and a **Web application** OAuth client.
+2. In Supabase → **Authentication → Sign In / Providers → Google**, enable Google, enter the Google client ID and client secret, and copy the Supabase callback URL shown there (typically `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`).
+3. Add that Supabase callback URL to the Google OAuth client’s **Authorized redirect URIs**.
+4. Ensure `catchya://auth/callback` is present in Supabase’s redirect allow-list. CatchYa opens the Supabase OAuth flow and exchanges its PKCE authorization code.
+5. For native testing, use a custom-scheme-capable development build (`npx expo run:ios` / `npx expo run:android` or an EAS development build). OAuth deep links are not a substitute for configuring the provider in Supabase.
 
-Email sign-up and sign-in work in **local testing mode**, without connecting a
-backend. From Sign in, choose Continue with email. If this device has no test
-account yet, choose Create one, register an email and password (8+ characters),
-then use those same credentials to sign in. Accounts are stored only on this
-device; there is no email verification, password reset email, or server
-identity. The app displays this mode on both auth screens. Passwords are salted
-and hashed for this local test flow, but AsyncStorage is not production-grade
-credential storage. Do not use real passwords or ship this mode to production.
+No Facebook/Telegram/X/etc. social-profile link becomes a sign-in provider unless separately enabled and configured through Supabase Auth.
 
-Google sign-in remains a real OAuth flow and still needs Google Cloud OAuth
-client IDs; local email test accounts do not need any provider setup.
+## 4. Configure local environment and run
 
-## 6. Nearby discovery backend contract
-
-The app currently has no backend SDK or nearby query, so radar does not invent
-profiles and currently reports that no connected results are available. Before
-production use, implement a server-side authenticated query/RPC that accepts a
-short-lived location fix and returns only opted-in, unblocked, audience-eligible
-profiles. Suggested fields:
-
-- `profiles.id`, `display_name`, `photo_url`
-- `discovery.enabled` (false by default), `expires_at`, `location_updated_at`
-- A private geospatial cell or coordinates stored with strict RLS/server-only
-  access; never include raw coordinates in client responses
-- A computed `distance_range` enum (`Within 1 km`, `1–3 km`, `3–5 km`, `5+ km`)
-- `social_links`: platform, account value, and explicit visibility flag
-
-The client query should be an authenticated RPC such as
-`nearby_profiles(lat, lng, radius_m, now)` that filters `enabled = true`,
-`expires_at > now`, recent location, block lists, and private audience rules;
-returns only `id`, `display_name`, `photo_url`, `distance_range`, and visible
-social links; and never returns coordinates or direction. The server must rate
-limit requests, enforce foreground-only short-lived fixes, and delete/expire
-location data on the selected timer. Add the matching SDK and RLS policies only
-after choosing the project’s actual backend; this package currently contains
-none. QR discovery remains independent of location.
-
-## 7. Appearance setting
-
-Light, Dark, and System are saved in device storage. The selection updates the
-OS appearance override and status bar style and is restored on startup. Screen
-components in this source still contain many static light surface styles; a
-full per-component color-token migration is needed for every card, input, and
-screen to render true dark surfaces consistently.
-
-## 6. Building a real device build (beyond Expo Go)
-
-Expo Go is fine for development. For TestFlight/App Store or Play Store
-builds, use [EAS Build](https://docs.expo.dev/build/introduction/):
+Copy the placeholder file and fill it locally:
 
 ```bash
-npm install -g eas-cli
-eas login
-eas build:configure
-eas build --platform ios
-eas build --platform android
+cp .env.example .env
 ```
 
-This requires an Apple Developer account (for iOS) and a Google Play
-Console account (for Android) to actually distribute the app.
+Set these two values in `.env`:
 
-## Project structure
-
+```dotenv
+EXPO_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_PROJECT_KEY
 ```
-catchya-app/
-  App.tsx                    entry point
-  app.json                   Expo config, permissions, plugins
-  src/
-    context/AuthContext.tsx  auth state, Google/email sign-in, onboarding
-    navigation/               React Navigation stacks + bottom tabs
-    screens/auth/             sign-in, create account, reset password, privacy
-    screens/onboarding/       about-you questions + profile setup incl. photo upload
-    screens/discover/         discover feed + profile detail (block/report)
-    screens/messages/         message requests + chat
-    screens/profile/          own profile
-    screens/settings/         discovery, privacy, notifications, account, and help controls
-    services/                 location, image upload, push notification helpers
-    theme/colors.ts           shared design tokens (matches the web prototype)
-    data/sampleData.ts        placeholder sample content
+
+Never put `SUPABASE_SERVICE_ROLE_KEY` or another secret in an `EXPO_PUBLIC_` variable. Restart Expo after changing environment variables:
+
+```bash
+npm install
+npx expo start
 ```
-## Nearby discovery
 
-The Discover screen explains that nearby discovery is optional and off by default before it requests foreground location access. People can choose 15 minutes, 1 hour, or until turned off, or skip without granting location permission. CatchYa displays approximate distance only and never exact location. The Discover list filters out profiles that have not opted in, uses broad distance ranges, and offers interest filters plus a direct QR scan. No sample users are shown. The nearby-profile data source is empty until a live backend is connected, so the screen shows a useful empty state in this starter build. A separate QR flow displays a scannable profile code or scans another code with camera permission only. QR tokens are random identifiers and do not contain email, phone, or location data. Resolving profile details across accounts requires a live profile backend.
+Use a custom development build for native OAuth deep-link testing. The normal app screens render a clear “backend not configured” message if these variables are absent.
 
-## Public profiles
+## 5. Enable server-side account deletion
 
-Profile details render only contact links explicitly returned with `visible: true` and a non-empty value. Supported platforms are Facebook, Telegram, X, TikTok, Instagram, LINE, WhatsApp, and WeChat. Message requests, blocks, and reports are stored locally in this demo; sending them across accounts requires a live messaging and moderation backend.
+Permanent deletion needs the included Edge Function because service-role operations must stay server-side. Supabase Edge Functions provide `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` in the function runtime; do not copy the service-role key to the app.
 
-## Edit profile
+For the linked project, deploy only this function when you are ready to enable account deletion:
 
-The Profile tab opens a locally saved profile editor with photo selection/capture, a display name, short bio, and optional social accounts for Facebook, Telegram, X, TikTok, Instagram, LINE, WhatsApp, and WeChat. Each account has its own visibility switch, and the preview shows only non-empty links that are marked visible. No phone number is requested or verified. Profile values are stored on-device for this demo.
+```bash
+npx supabase functions deploy delete-account
+```
 
-## Inbox
+For local Supabase, run it with:
 
-The Inbox separates accepted chats and message requests into tabs. It shows profile photo, name, latest message, time, and unread state for each stored conversation. Requests remain separate until accepted. With no messaging backend connected, the local inbox starts empty; incoming conversations must be provided by a backend or persisted inbox record. Row menus include local block and report actions.
+```bash
+npx supabase functions serve delete-account --env-file supabase/.env.local
+```
 
-## Message requests
+The local function environment file is for server-only values and must not be committed. The remote deployment command above is documentation only; this repository has not been deployed.
 
-Opening an item in Requests shows the sender photo, name, available profile preview, and the first message. The request screen offers Accept, Decline, Block, and Report. Accept changes the record to a private chat; pending requests do not expose a composer, and the local message-write service rejects messages until a record has been accepted. A production messaging backend must enforce this state on the server too.
+## 6. Tests and manual checks
 
-Accepted chats show the other person's photo and name, timestamped message bubbles, a composer, and a retry action if a send fails. The chat screen does not display location or social account details. Conversations can be blocked or reported from the chat actions menu. The current local demo stores messages on-device; delivery to another user requires a messaging backend.
+Run app checks:
 
-## Settings
+```bash
+npm run typecheck
+npm run lint
+```
 
-Settings keeps Edit Profile, Discoverability, Privacy, Notifications, Account, and Help in separate sections. Discovery is off by default; enabling it requests foreground location permission, and the selected duration is saved as 15 minutes, 1 hour, or until turned off. The Privacy section previews only profile details and social links marked visible, and lets users unblock accounts. Log out and Delete account are separate actions. Deletion clears the demo data stored on this device; a connected account service is needed to delete a live online account.
+Run database integration tests against a running local Supabase instance:
 
-## About you
+```bash
+npx supabase start
+npx supabase db reset
+npx supabase test db
+```
 
-The first onboarding step asks for gender and who the user hopes to meet. Each question can be skipped independently. Gender is private by default, with a separate opt-in to show it on the user's profile. Meeting choices are stored privately and never added to public profile data. Discover applies those choices to results; a live backend should compute the audience match without returning other users' private gender. Users can change these answers later from Settings.
+`supabase/tests/database/catchya_permissions.test.sql` exercises profile row privacy, default-off discovery, coordinate-table denial, recipient-only request acceptance, rejection of pending-request messages, and accepted-chat message permissions.
 
-The current demo has no live nearby-profile source, so the Discover feed remains empty until one is connected. For audience filtering, that source can return a per-viewer `audienceMatch` flag computed server-side from the user's private choices. Only `genderLabel`, when explicitly shared by the profile owner, belongs in public profile data.
+Manual app checks after configuring a test project:
 
-## Appearance (Light / Dark / System default)
+1. Create an account with email/password; if confirmation is on, confirm then sign in. Verify a blank profile leads to existing onboarding and saved profile data appears in Edit Profile/Settings.
+2. Test Google sign-in only after enabling the Google provider and configuring both callback allow-lists.
+3. In Discover, verify it starts off; grant foreground location; turn it on and select each duration (15 minutes, 30 minutes, and 1 hour); cancel and confirm that discovery stays off; then confirm a duration and scan. Deny location and confirm it does not enable. Turn discovery off and verify the service removes the stored location. Close/reopen after an expiry and confirm discovery remains off.
+4. Create a second account on another device/simulator. Make both profiles discoverable and scan nearby. Confirm approximate distance only, no precise coordinates, and mutual meet preferences are honored.
+5. Show one account’s QR code and scan it from the other. Confirm it navigates to the existing profile detail screen without enabling location.
+6. Send a request. Confirm the recipient can accept/decline, the sender cannot accept on the recipient’s behalf, and messages are unavailable until acceptance. After acceptance, send messages from both clients and verify Realtime updates.
+7. Test block/report and try to read/send in the blocked conversation. Test deactivation/sign-in reactivation and, on a disposable account, permanent deletion.
 
-Settings → Appearance. The choice is stored locally (`catchya:appearance` in AsyncStorage), defaults to
-System default, and needs no backend. Colors come from `src/theme/colors.ts` (`lightColors` / `darkColors`);
-screens read them through `useTheme()` and `useThemedStyles(makeStyles)` from `src/context/AppearanceContext.tsx`.
-Never import a fixed color for UI — use the active palette so every screen follows the selected mode.
-# CatchYa
-# CatchYa
+## Notes / production readiness
+
+This work does not deploy anything. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.

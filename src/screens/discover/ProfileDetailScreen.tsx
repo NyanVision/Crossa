@@ -58,8 +58,8 @@ export function ProfileDetailScreen({ route }: Props) {
       const created = await createMessageRequest(profile.id, profile.displayName);
       setRequestSent(true);
       Alert.alert(created ? "Request saved" : "Request already saved", created
-        ? `Your request to ${profile.displayName} is saved on this device. It will reach them when CatchYa’s messaging service is connected.`
-        : `You already saved a request to ${profile.displayName}.`);
+        ? `Your connection request to ${profile.displayName} has been sent.`
+        : `You already have an active request or connection with ${profile.displayName}.`);
     } catch {
       Alert.alert("Request not sent", "Please try again.");
     }
@@ -71,7 +71,7 @@ export function ProfileDetailScreen({ route }: Props) {
     [{ text: "Cancel", style: "cancel" }, { text: "Report", style: "destructive", onPress: async () => {
       try {
         await recordProfileReport(profile.id);
-        Alert.alert("Report saved", "This report is stored on this device. It will reach the moderation team when reporting is connected.");
+        Alert.alert("Report saved", "Your report has been submitted for review.");
       } catch {
         Alert.alert("Report not saved", "Please try again.");
       }
@@ -83,8 +83,8 @@ export function ProfileDetailScreen({ route }: Props) {
     setProfileBlocked(profile.id, nextBlocked, profile.displayName).then(() => {
       setBlocked(nextBlocked);
       Alert.alert(nextBlocked ? "Profile blocked" : "Profile unblocked", nextBlocked
-        ? `${profile.displayName} is blocked on this device.`
-        : `${profile.displayName} is unblocked on this device.`);
+        ? `${profile.displayName} is blocked and their CatchYa requests and chats will no longer be available.`
+        : `${profile.displayName} is unblocked.`);
     }).catch(() => Alert.alert("Couldn’t update block status", "Please try again."));
   };
 
@@ -93,6 +93,7 @@ export function ProfileDetailScreen({ route }: Props) {
       <View style={styles.profileHeader}>
         {profile.photoUrl ? <Image source={{ uri: profile.photoUrl }} style={styles.photo} accessibilityLabel={`${profile.displayName}'s profile photo`} /> : <View style={styles.photoFallback}><Ionicons name="person" size={34} color={colors.muted} /></View>}
         <Text style={styles.name}>{profile.displayName}</Text>
+        {profile.age !== null ? <Text style={styles.genderLabel}>{profile.age}</Text> : null}
         {profile.genderLabel ? <Text style={styles.genderLabel}>{profile.genderLabel}</Text> : null}
         <View style={styles.distancePill}><Ionicons name="radio-outline" size={13} color={colors.muted} /><Text style={styles.distance}>{profile.distanceRange}</Text></View>
       </View>

@@ -1,6 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-const OUTBOX_KEY = "catchya:outgoingMessageRequests";
+import { requireSupabase } from "@/services/supabase";
 
 export interface OutgoingMessageRequest {
   profileId: string;
@@ -8,11 +6,11 @@ export interface OutgoingMessageRequest {
   createdAt: string;
 }
 
-export async function createMessageRequest(profileId: string, displayName: string): Promise<boolean> {
-  const raw = await AsyncStorage.getItem(OUTBOX_KEY);
-  const requests: OutgoingMessageRequest[] = raw ? JSON.parse(raw) : [];
-  if (requests.some((request) => request.profileId === profileId)) return false;
-  requests.unshift({ profileId, displayName, createdAt: new Date().toISOString() });
-  await AsyncStorage.setItem(OUTBOX_KEY, JSON.stringify(requests));
-  return true;
+export async function createMessageRequest(profileId: string, _displayName: string): Promise<boolean> {
+  const { data, error } = await requireSupabase().rpc("send_connection_request", {
+    p_recipient_id: profileId,
+    p_initial_message: "",
+  });
+  if (error) throw error;
+  return data === true;
 }

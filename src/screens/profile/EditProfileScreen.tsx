@@ -74,6 +74,10 @@ export function EditProfileScreen({ navigation }: Props) {
       Alert.alert("Add a display name", "Enter the name you want people to see on your profile.");
       return;
     }
+    if (profile.age !== null && (!Number.isInteger(profile.age) || profile.age < 13 || profile.age > 120)) {
+      Alert.alert("Check your age", "Enter an age between 13 and 120, or leave it blank.");
+      return;
+    }
     setSaving(true);
     try {
       await saveProfile({ ...profile, name, bio: profile.bio.trim() });
@@ -105,6 +109,8 @@ export function EditProfileScreen({ navigation }: Props) {
         <View style={styles.formCard}>
           <Text style={styles.fieldLabel}>Display name</Text>
           <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={profile.name} onChangeText={(name) => updateProfile({ name })} placeholder="Your name" placeholderTextColor={colors.muted} maxLength={40} autoCapitalize="words" returnKeyType="next" style={styles.input} />
+          <Text style={styles.fieldLabel}>Age</Text>
+          <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={profile.age == null ? "" : String(profile.age)} onChangeText={(value) => updateProfile({ age: value.trim() ? Number(value.replace(/\D/g, "").slice(0, 3)) : null })} placeholder="Optional" placeholderTextColor={colors.muted} maxLength={3} keyboardType="number-pad" style={styles.input} />
           <View style={styles.fieldHeading}><Text style={styles.fieldLabel}>Short bio</Text><Text style={styles.counter}>{profile.bio.length}/120</Text></View>
           <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={profile.bio} onChangeText={(bio) => updateProfile({ bio })} placeholder="A little about you (optional)" placeholderTextColor={colors.muted} maxLength={120} multiline textAlignVertical="top" style={[styles.input, styles.bioInput]} />
         </View>

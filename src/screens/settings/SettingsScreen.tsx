@@ -12,6 +12,8 @@ import { emptyAboutYouPreferences, loadAboutYouPreferences, visibleGenderLabel, 
 import { loadDiscoveryPreferences, saveDiscoveryPreferences, type DiscoveryPreferences, type VisibilityDuration } from "@/services/discoveryPreferences";
 import { loadBlockedProfiles, setProfileBlocked, type BlockedProfile } from "@/services/profileSafety";
 import { requestLocationPermission } from "@/services/location";
+import * as Location from "expo-location";
+import { loadUserSettings, saveUserSettings } from "@/services/userSettings";
 import type { CurrentUser, SocialPlatform } from "@/types";
 import { type Palette, radii } from "@/theme/colors";
 import { useTheme, useThemedStyles } from "@/context/AppearanceContext";
@@ -29,7 +31,7 @@ export function SettingsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const { width: windowWidth, fontScale } = useWindowDimensions();
-  const { userId, signOut, deleteAccount } = useAuth();
+  const { userId, signOut, deactivateAccount, deleteAccount } = useAuth();
   const { choice: appearanceChoice, setChoice: setAppearanceChoice } = useAppAppearance();
   const [profile, setProfile] = useState<CurrentUser | null>(null);
   const [aboutYou, setAboutYou] = useState<AboutYouPreferences>(emptyAboutYouPreferences());
@@ -51,13 +53,14 @@ export function SettingsScreen({ navigation }: Props) {
       loadBlockedProfiles().catch(() => []),
       loadAboutYouPreferences(userId).catch(() => emptyAboutYouPreferences()),
       AsyncStorage.getItem(notificationKey).catch(() => null),
-    ]).then(([savedProfile, savedDiscovery, savedBlocked, savedAboutYou, savedNotifications]) => {
+      loadUserSettings(userId).catch(() => null),
+    ]).then(([savedProfile, savedDiscovery, savedBlocked, savedAboutYou, savedNotifications, cloudSettings]) => {
       if (!active) return;
       setProfile(savedProfile);
       setDiscovery(savedDiscovery);
       setBlockedProfiles(savedBlocked);
       setAboutYou(savedAboutYou);
-      setNotificationsOn(savedNotifications === "true");
+      setNotificationsOn(cloudSettings?.notificationsEnabled ?? savedNotifications === "true");
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [userId]));
@@ -90,7 +93,8 @@ export function SettingsScreen({ navigation }: Props) {
         ]);
         return;
       }
-      setDiscovery(await saveDiscoveryPreferences(userId, true, duration));
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setDiscovery(await saveDiscoveryPreferences(userId, true, duration, { latitude: position.coords.latitude, longitude: position.coords.longitude }));
       setShowDiscoveryDurationPicker(false);
     } catch {
       Alert.alert("Couldn’t update discovery", "Please try again.");
@@ -103,7 +107,8 @@ export function SettingsScreen({ navigation }: Props) {
     if (discoveryBusy || loading) return;
     setDiscoveryBusy(true);
     try {
-      setDiscovery(await saveDiscoveryPreferences(userId, discovery.enabled, duration));
+      const position = discovery.enabled ? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }) : null;
+      setDiscovery(await saveDiscoveryPreferences(userId, discovery.enabled, duration, position ? { latitude: position.coords.latitude, longitude: position.coords.longitude } : undefined));
     } catch {
       Alert.alert("Couldn’t save duration", "Please try again.");
     } finally { setDiscoveryBusy(false); }
@@ -114,12 +119,14 @@ export function SettingsScreen({ navigation }: Props) {
     if (!enabled) {
       setNotificationsOn(false);
       await AsyncStorage.setItem(key, "false");
+      if (userId) await saveUserSettings(userId, { notificationsEnabled: false });
       return;
     }
     try {
       const token = await registerForPushNotifications();
       setNotificationsOn(!!token);
       await AsyncStorage.setItem(key, token ? "true" : "false");
+      if (userId) await saveUserSettings(userId, { notificationsEnabled: !!token });
       if (!token) {
         Alert.alert("Notifications unavailable", "Enable notifications for CatchYa in your device settings. Push notification delivery also needs a configured app service.", [
           { text: "Open Settings", onPress: () => { void Linking.openSettings(); } },
@@ -145,7 +152,15 @@ export function SettingsScreen({ navigation }: Props) {
     { text: "Sign out", style: "destructive", onPress: () => { void signOut(); } },
   ]);
 
-  const confirmDelete = () => Alert.alert("Delete your account?", "This removes your saved profile, chats, requests, and safety data from this device. In this demo, account deletion is local; deleting an online account requires a connected account service.", [
+  const confirmDeactivate = () => Alert.alert("Deactivate your account?", "Your profile will be hidden, discovery will turn off, and your saved data will remain so you can reactivate by signing in again.", [
+    { text: "Cancel", style: "cancel" },
+    { text: "Deactivate", style: "destructive", onPress: async () => {
+      try { await deactivateAccount(); }
+      catch { Alert.alert("Couldn’t deactivate account", "Please try again."); }
+    } },
+  ]);
+
+  const confirmDelete = () => Alert.alert("Permanently delete your account?", "This permanently deletes your CatchYa profile, messages, requests, social links, safety data, and profile photos. This cannot be undone.", [
     { text: "Cancel", style: "cancel" },
     { text: "Delete account", style: "destructive", onPress: async () => {
       try { await deleteAccount(); }
@@ -165,7 +180,7 @@ export function SettingsScreen({ navigation }: Props) {
         <View style={[styles.appearanceChoices, (windowWidth <= 430 || fontScale > 1.2) && styles.appearanceChoicesNarrow]}>{(["light", "dark", "system"] as AppearanceChoice[]).map((option) => {
           const selected = appearanceChoice === option;
           const label = option === "system" ? "System default" : option[0].toUpperCase() + option.slice(1);
-          return <Pressable key={option} onPress={() => void setAppearanceChoice(option)} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`${label} appearance`} style={[styles.appearanceOption, (windowWidth <= 430 || fontScale > 1.2) && styles.appearanceOptionNarrow, selected && styles.appearanceSelected]}><Ionicons name={option === "light" ? "sunny-outline" : option === "dark" ? "moon-outline" : "phone-portrait-outline"} size={17} color={selected ? colors.accent : colors.muted} /><Text style={[styles.appearanceLabel, selected && styles.appearanceLabelSelected]}>{label}</Text></Pressable>;
+          return <Pressable key={option} onPress={() => { void setAppearanceChoice(option).catch(() => Alert.alert("Appearance not synced", "This choice is active on this device but could not be saved to your account. Check your connection and try again.")); }} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`${label} appearance`} style={[styles.appearanceOption, (windowWidth <= 430 || fontScale > 1.2) && styles.appearanceOptionNarrow, selected && styles.appearanceSelected]}><Ionicons name={option === "light" ? "sunny-outline" : option === "dark" ? "moon-outline" : "phone-portrait-outline"} size={17} color={selected ? colors.accent : colors.muted} /><Text style={[styles.appearanceLabel, selected && styles.appearanceLabelSelected]}>{label}</Text></Pressable>;
         })}</View>
       </View>
 
@@ -220,14 +235,16 @@ export function SettingsScreen({ navigation }: Props) {
       <View style={styles.card}>
         <SettingsRow icon="log-out-outline" title="Log out" description="Sign out on this device" onPress={confirmSignOut} />
         <View style={styles.rowDivider} />
-        <SettingsRow icon="trash-outline" title="Delete account" description="Remove your saved CatchYa data from this device" destructive onPress={confirmDelete} />
+        <SettingsRow icon="eye-off-outline" title="Deactivate account" description="Hide your profile and keep data for reactivation" onPress={confirmDeactivate} />
+        <View style={styles.rowDivider} />
+        <SettingsRow icon="trash-outline" title="Delete account" description="Permanently remove your account and associated data" destructive onPress={confirmDelete} />
       </View>
 
       <SectionHeading title="Help" />
       <View style={styles.card}>
         <SettingsRow icon="help-circle-outline" title="Privacy and discovery help" description="Learn how visibility, location, and links work" onPress={() => Alert.alert("Privacy and discovery", "Nearby discovery is optional and starts off. When enabled, only opted-in people can find you, your visibility ends at the duration you select, and your exact location is never displayed. Gender stays private unless you turn on Show this on my profile. Your Discover choices are private and only shape your results. Social links appear only when you add them and mark them visible.", [{ text: "Got it" }])} />
         <View style={styles.rowDivider} />
-        <SettingsRow icon="information-circle-outline" title="About CatchYa" description="This starter app stores profile and inbox data on this device" onPress={() => Alert.alert("About CatchYa", "CatchYa’s sign-in, messaging, and account services need a live backend before information can sync between users or account deletion can be completed online.", [{ text: "Done" }])} />
+        <SettingsRow icon="information-circle-outline" title="About CatchYa" description="Accounts, profiles, discovery, and messages sync securely" onPress={() => Alert.alert("About CatchYa", "CatchYa uses Supabase for secure account, profile, discovery, and messaging services. Nearby discovery is optional and your exact location is never shown to other users.", [{ text: "Done" }])} />
       </View>
       <Modal transparent visible={showDiscoveryDurationPicker} animationType="fade" onRequestClose={() => { if (!discoveryBusy) setShowDiscoveryDurationPicker(false); }}>
         <View style={styles.modalBackdrop}>

@@ -67,7 +67,7 @@ export function MessageRequestScreen({ route, navigation }: Props) {
 
   const block = () => {
     if (!request) return;
-    Alert.alert("Block this person?", `${request.displayName} will be blocked on this device and this request will be removed.`, [
+    Alert.alert("Block this person?", `${request.displayName} will be blocked and their requests and chats will no longer be available.`, [
       { text: "Cancel", style: "cancel" },
       { text: "Block", style: "destructive", onPress: async () => {
         setWorking(true);
@@ -88,7 +88,7 @@ export function MessageRequestScreen({ route, navigation }: Props) {
       { text: "Report", style: "destructive", onPress: async () => {
         try {
           await recordProfileReport(request.profileId);
-          Alert.alert("Report saved", "This report is stored on this device. It will reach moderation when reporting is connected.");
+          Alert.alert("Report saved", "Your report has been submitted for review.");
         } catch { Alert.alert("Report not saved", "Please try again."); }
       } },
     ]);

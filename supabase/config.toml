@@ -1,0 +1,19 @@
+project_id = "catchya"
+
+[api]
+enabled = true
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+enabled = true
+site_url = "catchya://auth/callback"
+additional_redirect_urls = ["catchya://auth/callback", "catchya://auth/reset-password"]
+
+[functions.delete-account]
+verify_jwt = true

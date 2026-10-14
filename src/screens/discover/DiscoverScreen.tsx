@@ -3,9 +3,9 @@ import { Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useDiscoveryExpiry } from "@/hooks/useDiscoveryExpiry";
-import type { DiscoveryPreferences } from "@/services/discoveryPreferences";
+import type { DiscoveryPreferences, DiscoveryLocation } from "@/services/discoveryPreferences";
 import { Button } from "@/components/Button";
-import { filterProfilesByAudience, getDiscoverableProfiles, nearbyProfiles, type NearbyProfile } from "@/services/discovery";
+import { filterProfilesByAudience, getDiscoverableProfiles, loadNearbyProfiles, type NearbyProfile } from "@/services/discovery";
 import { loadDiscoveryPreferences, saveDiscoveryPreferences } from "@/services/discoveryPreferences";
 import { loadAboutYouPreferences, type MeetingOption } from "@/services/aboutYouPreferences";
 import { loadBlockedProfiles } from "@/services/profileSafety";
@@ -34,6 +34,7 @@ export function DiscoverScreen({ navigation }: Props) {
   const [discoveryReady, setDiscoveryReady] = useState(false);
   const [blockedIds, setBlockedIds] = useState<string[]>([]);
   const [meetingPreferences, setMeetingPreferences] = useState<MeetingOption[]>([]);
+  const [profiles, setProfiles] = useState<NearbyProfile[]>([]);
   const [radarState, setRadarState] = useState<"idle" | "scanning" | "permission" | "empty" | "error">("idle");
 
   useFocusEffect(useCallback(() => {
@@ -52,6 +53,7 @@ export function DiscoverScreen({ navigation }: Props) {
         setDiscoveryOn(false);
         setExpiresAt(null);
         setDiscoveryReady(true);
+        setRadarState("error");
       }
     });
     return () => { active = false; };
@@ -61,11 +63,24 @@ export function DiscoverScreen({ navigation }: Props) {
     setDiscoveryOn(preferences.enabled);
     setSelectedDuration(preferences.duration);
     setExpiresAt(preferences.expiresAt);
+    if (!preferences.enabled) {
+      setProfiles([]);
+      setRadarState("idle");
+    }
   }, []);
   useDiscoveryExpiry(userId, expiresAt, applyDiscovery);
 
+  const getForegroundFix = async (): Promise<DiscoveryLocation> => {
+    const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    return { latitude: position.coords.latitude, longitude: position.coords.longitude };
+  };
+
   const scanNearby = () => {
-    Alert.alert("Why CatchYa needs location", "Location lets CatchYa request nearby profiles that have opted in and calculate only an approximate distance range. CatchYa uses foreground access for this scan only. It never shows exact coordinates or direction, and it does not track in the background.", [
+    if (!discoveryOn) {
+      Alert.alert("Turn on nearby discovery first", "You control when discovery is active. Turn it on and choose a duration before searching for opted-in people.", [{ text: "OK" }]);
+      return;
+    }
+    Alert.alert("Why CatchYa needs location", "CatchYa uses foreground location only while you scan and discovery is active. The server compares locations but returns only approximate distance ranges—never exact coordinates.", [
       { text: "Cancel", style: "cancel" },
       { text: "Continue", onPress: () => { void runNearbyScan(); } },
     ]);
@@ -76,32 +91,33 @@ export function DiscoverScreen({ navigation }: Props) {
     try {
       const permission = await requestLocationPermission();
       if (permission !== "granted") { setRadarState("permission"); return; }
-      // Read an approximate fix only. No raw coordinates are persisted or shared.
-      await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      // There is no server client in this project. Never substitute mock profiles.
-      setRadarState("empty");
-    } catch { setRadarState("error"); }
+      const location = await getForegroundFix();
+      const found = await loadNearbyProfiles(location);
+      setProfiles(found);
+      setRadarState(found.length ? "idle" : "empty");
+    } catch {
+      setProfiles([]);
+      setRadarState("error");
+    }
   };
 
   const turnOffDiscovery = async () => {
     setSavingDiscovery(true);
-    // Hide the user immediately, then persist the opt-out.
     setDiscoveryOn(false);
     setExpiresAt(null);
+    setProfiles([]);
     setShowDurationPicker(false);
     try {
       await saveDiscoveryPreferences(userId, false, selectedDuration);
     } catch {
-      Alert.alert("Couldn’t turn off discovery", "Please try again. Discovery is off on this screen, but the change could not be saved. Reopen the screen and retry.");
+      Alert.alert("Couldn’t turn off discovery", "Please try again. The server may still show discovery as active until this change is saved.");
+      setDiscoveryReady(false);
     } finally { setSavingDiscovery(false); }
   };
 
   const handleDiscoverySwitch = (nextValue: boolean) => {
     if (!discoveryReady || savingDiscovery) return;
-    if (!nextValue) {
-      void turnOffDiscovery();
-      return;
-    }
+    if (!nextValue) { void turnOffDiscovery(); return; }
     setDraftDuration(selectedDuration);
     setShowDurationPicker(true);
   };
@@ -113,25 +129,24 @@ export function DiscoverScreen({ navigation }: Props) {
       const permission = await requestLocationPermission();
       if (permission !== "granted") {
         setShowDurationPicker(false);
-        Alert.alert("Location permission needed", "Allow foreground location to use nearby discovery. Your exact location is never shown.");
+        Alert.alert("Location permission needed", "Allow foreground location to turn on nearby discovery. Your exact location is never displayed.");
         return;
       }
-      const preferences = await saveDiscoveryPreferences(userId, true, draftDuration);
+      const location = await getForegroundFix();
+      const preferences = await saveDiscoveryPreferences(userId, true, draftDuration, location);
       setSelectedDuration(preferences.duration);
       setDiscoveryOn(preferences.enabled);
       setExpiresAt(preferences.expiresAt);
       setShowDurationPicker(false);
     } catch {
-      Alert.alert("Couldn’t turn on discovery", "Your setting was not saved. Please try again.");
-    } finally {
-      setSavingDiscovery(false);
-    }
+      Alert.alert("Couldn’t turn on discovery", "Your setting and location were not saved. Please try again.");
+    } finally { setSavingDiscovery(false); }
   };
 
   const eligibleProfiles = useMemo(() => filterProfilesByAudience(
-    getDiscoverableProfiles(nearbyProfiles).filter((profile) => !blockedIds.includes(profile.id)),
+    getDiscoverableProfiles(profiles).filter((profile) => !blockedIds.includes(profile.id)),
     meetingPreferences,
-  ), [blockedIds, meetingPreferences]);
+  ), [blockedIds, meetingPreferences, profiles]);
   const filteredProfiles = discoveryOn ? eligibleProfiles : [];
 
   const openProfile = (profile: NearbyProfile) => navigation.navigate("ProfileDetail", { profile });
@@ -154,57 +169,34 @@ export function DiscoverScreen({ navigation }: Props) {
           <View style={[styles.statusCard, discoveryOn ? styles.statusOn : styles.statusOff]}>
             <View style={styles.statusRow}>
               <View style={[styles.statusIcon, discoveryOn ? styles.statusIconOn : styles.statusIconOff]}><Ionicons name={discoveryOn ? "eye-outline" : "eye-off-outline"} size={19} color={discoveryOn ? colors.success : colors.accent} /></View>
-              <View style={styles.statusTextWrap}>
-                <Text style={styles.statusTitle}>Nearby Discovery</Text>
-                <Text style={styles.statusCopy}>{discoveryOn ? "Nearby discovery is on" : "Nearby discovery is off"}</Text>
-              </View>
-              <Pressable
-                onPress={() => handleDiscoverySwitch(!discoveryOn)}
-                disabled={!discoveryReady || savingDiscovery}
-                accessibilityRole="switch"
-                accessibilityLabel="Nearby Discovery"
-                accessibilityState={{ checked: discoveryOn, disabled: !discoveryReady || savingDiscovery }}
-                style={[styles.switchTouchTarget, (!discoveryReady || savingDiscovery) && styles.disabledSwitch]}
-              >
-                <View style={[styles.switchTrack, discoveryOn ? styles.switchTrackOn : styles.switchTrackOff]}>
-                  <View style={[styles.switchThumb, discoveryOn ? styles.switchThumbOn : styles.switchThumbOff]} />
-                </View>
+              <View style={styles.statusTextWrap}><Text style={styles.statusTitle}>Nearby Discovery</Text><Text style={styles.statusCopy}>{discoveryOn ? "Nearby discovery is on" : "Nearby discovery is off"}</Text>{discoveryOn ? <Text style={styles.statusDuration}>Visible for {selectedDuration}</Text> : null}</View>
+              <Pressable onPress={() => handleDiscoverySwitch(!discoveryOn)} disabled={!discoveryReady || savingDiscovery} accessibilityRole="switch" accessibilityLabel="Nearby Discovery" accessibilityState={{ checked: discoveryOn, disabled: !discoveryReady || savingDiscovery }} style={[styles.switchTouchTarget, (!discoveryReady || savingDiscovery) && styles.disabledSwitch]}>
+                <View style={[styles.switchTrack, discoveryOn ? styles.switchTrackOn : styles.switchTrackOff]}><View style={[styles.switchThumb, discoveryOn ? styles.switchThumbOn : styles.switchThumbOff]} /></View>
               </Pressable>
             </View>
           </View>
 
           <Modal transparent visible={showDurationPicker} animationType="fade" onRequestClose={() => { if (!savingDiscovery) setShowDurationPicker(false); }}>
-            <View style={styles.modalBackdrop}>
-              <View style={styles.durationModal}>
-                <Text style={styles.modalTitle}>Turn on nearby discovery</Text>
-                <Text style={styles.modalCopy}>Choose how long you want to be visible. Discovery will turn off automatically.</Text>
-                <View style={styles.durationRow}>{durations.map((duration) => {
-                  const selected = duration === draftDuration;
-                  return <Pressable key={duration} onPress={() => setDraftDuration(duration)} disabled={savingDiscovery} accessibilityRole="radio" accessibilityState={{ selected }} style={[styles.durationChip, selected && styles.durationChipSelected]}><Text style={[styles.durationText, selected && styles.durationTextSelected]}>{duration}</Text></Pressable>;
-                })}</View>
-                <View style={styles.editorActions}>
-                  <Pressable onPress={() => setShowDurationPicker(false)} disabled={savingDiscovery} accessibilityRole="button" style={[styles.editorBtn, styles.editorCancel]}><Text style={styles.editorCancelText}>Cancel</Text></Pressable>
-                  <Pressable onPress={() => void confirmDiscoveryDuration()} disabled={savingDiscovery} accessibilityRole="button" style={[styles.editorBtn, styles.editorSave, savingDiscovery && { opacity: 0.6 }]}><Text style={styles.editorSaveText}>{savingDiscovery ? "Turning on…" : "Confirm"}</Text></Pressable>
-                </View>
-              </View>
-            </View>
+            <View style={styles.modalBackdrop}><View style={styles.durationModal}>
+              <Text style={styles.modalTitle}>Turn on nearby discovery</Text><Text style={styles.modalCopy}>Choose how long you want to be visible. Discovery will turn off automatically.</Text>
+              <View style={styles.durationRow}>{durations.map((duration) => {
+                const selected = duration === draftDuration;
+                return <Pressable key={duration} onPress={() => setDraftDuration(duration)} disabled={savingDiscovery} accessibilityRole="radio" accessibilityState={{ selected }} style={[styles.durationChip, selected && styles.durationChipSelected]}><Text style={[styles.durationText, selected && styles.durationTextSelected]}>{duration}</Text></Pressable>;
+              })}</View>
+              <View style={styles.editorActions}><Pressable onPress={() => setShowDurationPicker(false)} disabled={savingDiscovery} accessibilityRole="button" style={[styles.editorBtn, styles.editorCancel]}><Text style={styles.editorCancelText}>Cancel</Text></Pressable><Pressable onPress={() => void confirmDiscoveryDuration()} disabled={savingDiscovery} accessibilityRole="button" style={[styles.editorBtn, styles.editorSave, savingDiscovery && { opacity: 0.6 }]}><Text style={styles.editorSaveText}>{savingDiscovery ? "Turning on…" : "Confirm"}</Text></Pressable></View>
+            </View></View>
           </Modal>
 
           <View style={styles.radarCard}>
-            <View style={styles.radarGlyph}><Ionicons name="radio-outline" size={25} color={colors.accent} /></View>
-            <Text style={styles.setupTitle}>Nearby radar</Text>
-            <Text style={styles.setupCopy}>Find people nearby who have chosen to be discoverable. Results show an approximate range only.</Text>
-            <Button label={radarState === "scanning" ? "Scanning…" : "Scan nearby"} variant="default" loading={radarState === "scanning"} onPress={scanNearby} />
+            <View style={styles.radarGlyph}><Ionicons name="radio-outline" size={25} color={colors.accent} /></View><Text style={styles.setupTitle}>Nearby radar</Text><Text style={styles.setupCopy}>Find people nearby who have chosen to be discoverable. Results show an approximate range only.</Text>
+            <Button label={radarState === "scanning" ? "Scanning…" : "Scan nearby"} variant="default" loading={radarState === "scanning"} disabled={!discoveryOn || radarState === "scanning"} onPress={scanNearby} />
+            {!discoveryOn ? <Text style={styles.radarState}>Turn on nearby discovery and choose a duration before scanning.</Text> : null}
             {radarState === "permission" ? <Text style={styles.radarState}>Location permission is off. Allow foreground location in device Settings to scan.</Text> : null}
-            {radarState === "empty" ? <Text style={styles.radarState}>No nearby results are available yet. Nearby discovery needs a connected backend; QR discovery still works now.</Text> : null}
-            {radarState === "error" ? <Text style={styles.radarError}>The scan could not finish. Check location services and try again.</Text> : null}
+            {radarState === "empty" ? <Text style={styles.radarState}>No opted-in people were found nearby. Try again later or use QR discovery.</Text> : null}
+            {radarState === "error" ? <Text style={styles.radarError}>The scan could not finish. Check your connection and location services, then try again.</Text> : null}
           </View>
 
-          <View style={styles.setupCard}>
-            <View style={styles.setupTitleRow}><Ionicons name="shield-checkmark-outline" size={17} color={colors.success} /><Text style={styles.setupTitle}>Your exact location is never displayed</Text></View>
-            <Text style={styles.setupCopy}>People see an approximate distance range only. Choose a time period when turning discovery on, and switch it off whenever you want.</Text>
-          </View>
-
+          <View style={styles.setupCard}><View style={styles.setupTitleRow}><Ionicons name="shield-checkmark-outline" size={17} color={colors.success} /><Text style={styles.setupTitle}>Your exact location is never displayed</Text></View><Text style={styles.setupCopy}>People see an approximate distance range only. Choose a time period when turning discovery on, and switch it off whenever you want.</Text></View>
           <View style={styles.resultsHeading}><Text style={styles.sectionTitle}>People nearby</Text><Text style={styles.resultCount}>{filteredProfiles.length}</Text></View>
           {meetingPreferences.length > 0 ? <Text style={styles.privateFilterNote}>Personalized with your private Discover preferences</Text> : null}
         </>}
@@ -219,11 +211,8 @@ function ProfileCard({ profile, onPress }: { profile: NearbyProfile; onPress: ()
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   return <View style={styles.profileCard}>
-    <Image source={{ uri: profile.photoUrl }} style={styles.photo} accessibilityLabel={`${profile.displayName}'s profile photo`} />
-    <View style={styles.profileInfo}>
-      <Text style={styles.profileName} numberOfLines={1}>{profile.displayName}</Text>
-      <Text style={styles.distance}><Ionicons name="radio-outline" size={12} color={colors.muted} />  {profile.distanceRange}</Text>
-    </View>
+    {profile.photoUrl ? <Image source={{ uri: profile.photoUrl }} style={styles.photo} accessibilityLabel={`${profile.displayName}'s profile photo`} /> : <View style={[styles.photo, styles.photoPlaceholder]}><Ionicons name="person" size={19} color={colors.muted} /></View>}
+    <View style={styles.profileInfo}><Text style={styles.profileName} numberOfLines={1}>{profile.displayName}</Text><Text style={styles.distance}><Ionicons name="radio-outline" size={12} color={colors.muted} />  {profile.distanceRange}</Text></View>
     <Pressable onPress={onPress} accessibilityRole="button" style={styles.viewButton}><Text style={styles.viewButtonText}>View profile</Text></Pressable>
   </View>;
 }
@@ -231,24 +220,16 @@ function ProfileCard({ profile, onPress }: { profile: NearbyProfile; onPress: ()
 function EmptyDiscovery({ discoveryOn, filteredByAudience, onScan, onEditPreferences }: { discoveryOn: boolean; filteredByAudience: boolean; onScan: () => void; onEditPreferences: () => void }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const title = filteredByAudience
-    ? "No one matches your choices yet"
-    : discoveryOn ? "No opted-in people nearby yet" : "No profiles to show yet";
-  const description = filteredByAudience
-    ? "Your Discover choices are private. You can update them in Settings or choose Everyone."
-    : discoveryOn
-      ? "Only people who turn on nearby discovery appear here. Try again later or use QR discovery."
-      : "Turn on nearby discovery to see people who have also opted in. You can also find someone in person with a QR code.";
-  return <View style={styles.emptyCard}>
-    <View style={styles.emptyIcon}><Ionicons name="people-outline" size={27} color={colors.accent} /></View>
-    <Text style={styles.emptyTitle}>{title}</Text>
-    <Text style={styles.emptyCopy}>{description}</Text>
+  const title = filteredByAudience ? "No one matches your choices yet" : discoveryOn ? "No opted-in people nearby yet" : "No profiles to show yet";
+  const description = filteredByAudience ? "Your Discover choices are private. You can update them in Settings or choose Everyone." : discoveryOn ? "Only people who turn on nearby discovery appear here. Try again later or use QR discovery." : "Turn on nearby discovery to see people who have also opted in. You can also find someone in person with a QR code.";
+  return <View style={styles.emptyCard}><View style={styles.emptyIcon}><Ionicons name="people-outline" size={27} color={colors.accent} /></View><Text style={styles.emptyTitle}>{title}</Text><Text style={styles.emptyCopy}>{description}</Text>
     {filteredByAudience ? <Pressable onPress={onEditPreferences} accessibilityRole="button" style={styles.scanButton}><Ionicons name="options-outline" size={17} color={colors.accent} /><Text style={styles.scanButtonText}>Change Discover choices</Text></Pressable> : null}
     <Pressable onPress={onScan} accessibilityRole="button" style={styles.scanButton}><Ionicons name="scan-outline" size={17} color={colors.accent} /><Text style={styles.scanButtonText}>Scan a QR code</Text></Pressable>
   </View>;
 }
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
+
   screen: { flex: 1, backgroundColor: colors.background },
   topbar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
   h1: { fontSize: 20, fontWeight: "800", color: colors.text },
@@ -309,6 +290,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   resultCount: { minWidth: 21, textAlign: "center", paddingHorizontal: 5, paddingVertical: 2, borderRadius: 99, overflow: "hidden", backgroundColor: colors.borderSoft, color: colors.muted, fontSize: 10, fontWeight: "800" },
   profileCard: { flexDirection: "row", alignItems: "center", gap: 11, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.lg, padding: 12, marginBottom: 10 },
   photo: { width: 54, height: 54, borderRadius: 18, backgroundColor: colors.borderSoft },
+  photoPlaceholder: { alignItems: "center", justifyContent: "center" },
   profileInfo: { flex: 1, minWidth: 0 },
   profileName: { fontSize: 14, fontWeight: "800", color: colors.text },
   distance: { color: colors.muted, fontSize: 11.5, marginTop: 4 },

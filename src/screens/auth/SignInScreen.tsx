@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
+import { isSupabaseConfigured } from "@/services/supabase";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
 import { Banner } from "@/components/Banner";
@@ -22,67 +23,21 @@ export function SignInScreen({ navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
-      <View style={styles.brand}>
-        <Text style={styles.h1}>Sign in</Text>
-        <Text style={styles.sub}>Sign in to your CatchYa account to continue.</Text>
-        <Text style={styles.testNotice}>Local testing mode · accounts stay on this device and are not verified online.</Text>
+      <View style={styles.brand}><Text style={styles.h1}>Sign in</Text><Text style={styles.sub}>Sign in to your CatchYa account to continue.</Text>
+        {!isSupabaseConfigured ? <Text style={styles.testNotice}>Backend not configured yet. Add your Supabase URL and publishable key to the local .env file.</Text> : null}
       </View>
-
       <Banner message={error} />
-
-      <Button
-        label="Continue with Google"
-        variant="default"
-        loading={loading}
-        onPress={() => {
-          clearError();
-          signInWithGoogle();
-        }}
-        icon={<Ionicons name="logo-google" size={18} color="#4285F4" />}
-      />
-
+      <Button label="Continue with Google" variant="default" loading={loading} disabled={!isSupabaseConfigured || loading} onPress={() => { clearError(); void signInWithGoogle(); }} icon={<Ionicons name="logo-google" size={18} color="#4285F4" />} />
       <View style={{ height: 10 }} />
-
-      <Button
-        label="Continue with email"
-        onPress={() => setShowEmailForm((v) => !v)}
-        icon={<Ionicons name="mail-outline" size={18} color={colors.text} />}
-      />
-
-      {showEmailForm && (
-        <View style={{ marginTop: 14 }}>
-          <TextField label="Email" keyboardType="email-address" value={email} onChangeText={setEmail} placeholder="you@example.com" />
-          <TextField label="Password" secureTextEntry value={password} onChangeText={setPassword} placeholder="••••••••" />
-          <Text style={styles.forgot} onPress={() => navigation.navigate("ResetPassword")}>
-            Forgot password?
-          </Text>
-          <Button
-            label="Sign in"
-            variant="primary"
-            loading={loading}
-            onPress={() => {
-              clearError();
-              signInWithEmail(email, password);
-            }}
-          />
-          <Text style={styles.hint}>Email sign-in needs a configured authentication service. Your saved CatchYa profile data stays on this device.</Text>
-        </View>
-      )}
-
-      <View style={styles.linkRow}>
-        <Text style={styles.muted}>Don't have an account? </Text>
-        <Text style={styles.link} onPress={() => navigation.navigate("CreateAccount")}>
-          Create one
-        </Text>
-      </View>
-
-      <Text style={[styles.hint, { textAlign: "center", marginTop: 22 }]}>
-        By continuing, you agree to CatchYa's{" "}
-        <Text style={styles.link} onPress={() => navigation.navigate("PrivacyPolicy")}>
-          Privacy Policy
-        </Text>
-        .
-      </Text>
+      <Button label="Continue with email" disabled={!isSupabaseConfigured || loading} onPress={() => setShowEmailForm((value) => !value)} icon={<Ionicons name="mail-outline" size={18} color={colors.text} />} />
+      {showEmailForm ? <View style={{ marginTop: 14 }}>
+        <TextField label="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} placeholder="you@example.com" />
+        <TextField label="Password" secureTextEntry value={password} onChangeText={setPassword} placeholder="••••••••" />
+        <Text style={styles.forgot} onPress={() => navigation.navigate("ResetPassword")}>Forgot password?</Text>
+        <Button label="Sign in" variant="primary" loading={loading} disabled={!isSupabaseConfigured || loading} onPress={() => { clearError(); void signInWithEmail(email, password); }} />
+      </View> : null}
+      <View style={styles.linkRow}><Text style={styles.muted}>Don't have an account? </Text><Text style={styles.link} onPress={() => navigation.navigate("CreateAccount")}>Create one</Text></View>
+      <Text style={[styles.hint, { textAlign: "center", marginTop: 22 }]}>By continuing, you agree to CatchYa's <Text style={styles.link} onPress={() => navigation.navigate("PrivacyPolicy")}>Privacy Policy</Text>.</Text>
     </ScrollView>
   );
 }
@@ -95,17 +50,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   testNotice: { fontSize: 11.5, color: colors.muted, lineHeight: 16, marginTop: 10, padding: 10, backgroundColor: colors.borderSoft, borderRadius: 10 },
   forgot: { textAlign: "right", color: colors.accent, fontWeight: "700", fontSize: 12.5, marginBottom: 14 },
   hint: { fontSize: 12, color: colors.muted, marginTop: 10, lineHeight: 17 },
-  bold: { fontWeight: "800", color: colors.text },
   linkRow: { flexDirection: "row", justifyContent: "center", marginTop: 18 },
   muted: { color: colors.muted, fontSize: 13.5 },
   link: { color: colors.accent, fontWeight: "700", fontSize: 13.5 },
-  sectionTitle: { fontSize: 13, fontWeight: "700", color: colors.muted, textAlign: "center", marginTop: 26 },
-  futureRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 14 },
-  futureItem: {
-    width: 60, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderStyle: "dashed",
-    borderColor: colors.border, backgroundColor: colors.borderSoft, alignItems: "center", gap: 5, opacity: 0.6,
-  },
-  futureLabel: { fontSize: 9.5, fontWeight: "700", color: colors.muted },
-  soonBadge: { position: "absolute", top: -6, right: -4, backgroundColor: colors.border, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
-  soonText: { fontSize: 8, fontWeight: "800", color: colors.muted },
 });
