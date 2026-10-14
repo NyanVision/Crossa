@@ -458,7 +458,7 @@ begin
   where (r.sender_id = v_uid or r.recipient_id = v_uid)
     and (r.status = 'accepted' or (r.status = 'pending' and r.recipient_id = v_uid))
     and p.account_status = 'active' and not private.users_are_blocked(v_uid, p.id)
-  on conflict (viewer_id, profile_id) do update set expires_at = excluded.expires_at;
+  on conflict do update set expires_at = excluded.expires_at;
   return query
   select r.id, p.id, p.display_name, p.photo_path,
     case when r.status = 'accepted' then 'chat' else 'request' end,

@@ -45,7 +45,8 @@ Deno.serve(async (request) => {
     processed++;
     try { await processOutbox(admin, claimed); }
     catch (error) {
-      const attempts = claimed.attempts + 1;
+      // claimOutbox already increments the attempt count for this processing pass.
+      const attempts = claimed.attempts;
       const dead = attempts >= 8;
       await admin.from("notification_outbox").update({
         status: dead ? "dead_letter" : "queued",
@@ -175,14 +176,15 @@ async function processOutbox(admin: ReturnType<typeof createClient>, item: Outbo
 }
 
 async function processReceipts(admin: ReturnType<typeof createClient>): Promise<number> {
-  const { data: devices, error } = await admin.from("push_devices").select("id,last_ticket_id")
-    .not("last_ticket_id", "is", null).limit(500);
+  const { data: deliveries, error } = await admin.from("push_deliveries")
+    .select("id,outbox_id,device_id,ticket_id,attempts")
+    .eq("status", "sent").not("ticket_id", "is", null).order("created_at").limit(500);
   if (error) throw error;
-  const rows = (devices ?? []).filter((row) => typeof row.last_ticket_id === "string");
+  const rows = (deliveries ?? []).filter((row) => typeof row.ticket_id === "string");
   let checked = 0;
   for (let offset = 0; offset < rows.length; offset += 300) {
     const chunk = rows.slice(offset, offset + 300);
-    const ids = chunk.map((row) => row.last_ticket_id as string);
+    const ids = chunk.map((row) => row.ticket_id as string);
     const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
     const expoAccessToken = Deno.env.get("EXPO_ACCESS_TOKEN");
     if (expoAccessToken) headers.Authorization = `Bearer ${expoAccessToken}`;
@@ -190,14 +192,32 @@ async function processReceipts(admin: ReturnType<typeof createClient>): Promise<
     if (!response.ok) continue;
     const result = await response.json().catch(() => null) as { data?: Record<string, { status?: string; details?: { error?: string }; message?: string }> } | null;
     for (const device of chunk) {
-      const receipt = result?.data?.[device.last_ticket_id as string];
-      if (!receipt) continue;
+      const ticketId = device.ticket_id as string;
+      const receipt = result?.data?.[ticketId];
+      if (!receipt || (receipt.status !== "ok" && receipt.status !== "error")) continue;
       checked++;
       if (receipt.details?.error === "DeviceNotRegistered") {
-        await admin.from("push_devices").update({ enabled: false, last_error: "DeviceNotRegistered", last_ticket_id: null, updated_at: new Date().toISOString() }).eq("id", device.id);
-        await admin.from("push_deliveries").update({ status: "invalid", last_error: "DeviceNotRegistered" }).eq("device_id", device.id).eq("ticket_id", device.last_ticket_id);
+        await admin.from("push_devices").update({ enabled: false, last_error: "DeviceNotRegistered", updated_at: new Date().toISOString() }).eq("id", device.device_id);
+        await admin.from("push_deliveries").update({ status: "invalid", last_error: "DeviceNotRegistered", ticket_id: null }).eq("id", device.id);
       } else {
-        await admin.from("push_devices").update({ last_error: receipt.status === "error" ? safeError(receipt.message ?? "Push receipt error") : null, last_ticket_id: null, updated_at: new Date().toISOString() }).eq("id", device.id);
+        const lastError = receipt.status === "error" ? safeError(receipt.message ?? "Push receipt error") : null;
+        await admin.from("push_devices").update({ last_error: lastError, last_ticket_id: null, updated_at: new Date().toISOString() })
+          .eq("id", device.device_id).eq("last_ticket_id", ticketId);
+        if (receipt.status === "error") {
+          const exhausted = device.attempts >= 8;
+          const nextAttemptAt = new Date(Date.now() + retryDelay(device.attempts)).toISOString();
+          await admin.from("push_deliveries").update({
+            status: exhausted ? "suppressed" : "retry", next_attempt_at: nextAttemptAt,
+            last_error: lastError, ticket_id: null,
+          }).eq("id", device.id);
+          if (!exhausted) {
+            await admin.from("notification_outbox").update({
+              status: "queued", next_attempt_at: nextAttemptAt, locked_until: null,
+            }).eq("id", device.outbox_id).eq("status", "sent");
+          }
+        } else {
+          await admin.from("push_deliveries").update({ ticket_id: null, last_error: null }).eq("id", device.id);
+        }
       }
     }
   }
