@@ -3,6 +3,7 @@ import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInpu
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
 import { pickProfilePhoto, takeProfilePhoto } from "@/services/imageUpload";
 import { emptyProfile, loadProfile, saveProfile } from "@/services/profileStorage";
 import type { CurrentUser, SocialPlatform } from "@/types";
@@ -14,6 +15,7 @@ import type { AppStackParamList } from "@/navigation/AppTabs";
 
 type Props = NativeStackScreenProps<AppStackParamList, "EditProfile">;
 const platforms: SocialPlatform[] = ["facebook", "telegram", "x", "tiktok", "instagram", "line", "whatsapp", "wechat"];
+const isLocalPhoto = (uri: string) => uri.startsWith("file://") || uri.startsWith("content://");
 const platformLabels: Record<SocialPlatform, string> = {
   facebook: "Facebook", telegram: "Telegram", x: "X", tiktok: "TikTok",
   instagram: "Instagram", line: "LINE", whatsapp: "WhatsApp", wechat: "WeChat",
@@ -59,8 +61,12 @@ export function EditProfileScreen({ navigation }: Props) {
   };
 
   const changePhoto = async (picker: () => Promise<string | null>) => {
-    const uri = await picker();
-    if (uri) updateProfile({ photoUri: uri });
+    try {
+      const uri = await picker();
+      if (uri) updateProfile({ photoUri: uri });
+    } catch {
+      Alert.alert("Couldn’t choose photo", "Check CatchYa’s photo or camera permission in device Settings, then try again.");
+    }
   };
 
   const save = async () => {
@@ -94,7 +100,7 @@ export function EditProfileScreen({ navigation }: Props) {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.photoSection}>
           <View style={styles.photoWrap}>
-            {profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.photo} /> : <View style={styles.photoPlaceholder}><Ionicons name="person" size={36} color={colors.muted} /></View>}
+            {profile.photoUri ? isLocalPhoto(profile.photoUri) ? <Image source={{ uri: profile.photoUri }} style={styles.photo} /> : <SignedProfileImage path={profile.photoPath} uri={profile.photoUri} style={styles.photo} accessibilityLabel="Your profile photo" /> : <View style={styles.photoPlaceholder}><Ionicons name="person" size={36} color={colors.muted} /></View>}
             <Pressable style={styles.cameraBadge} onPress={() => changePhoto(takeProfilePhoto)} accessibilityRole="button" accessibilityLabel="Take a profile photo"><Ionicons name="camera" size={16} color={colors.accentInk} /></Pressable>
           </View>
           <Text style={styles.photoTitle}>Profile photo</Text>
@@ -109,7 +115,7 @@ export function EditProfileScreen({ navigation }: Props) {
         <View style={styles.formCard}>
           <Text style={styles.fieldLabel}>Display name</Text>
           <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={profile.name} onChangeText={(name) => updateProfile({ name })} placeholder="Your name" placeholderTextColor={colors.muted} maxLength={40} autoCapitalize="words" returnKeyType="next" style={styles.input} />
-          <Text style={styles.fieldLabel}>Age</Text>
+          <Text style={styles.fieldLabel}>Age (self-declared)</Text>
           <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={profile.age == null ? "" : String(profile.age)} onChangeText={(value) => updateProfile({ age: value.trim() ? Number(value.replace(/\D/g, "").slice(0, 3)) : null })} placeholder="Optional" placeholderTextColor={colors.muted} maxLength={3} keyboardType="number-pad" style={styles.input} />
           <View style={styles.fieldHeading}><Text style={styles.fieldLabel}>Short bio</Text><Text style={styles.counter}>{profile.bio.length}/120</Text></View>
           <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={profile.bio} onChangeText={(bio) => updateProfile({ bio })} placeholder="A little about you (optional)" placeholderTextColor={colors.muted} maxLength={120} multiline textAlignVertical="top" style={[styles.input, styles.bioInput]} />
@@ -121,7 +127,7 @@ export function EditProfileScreen({ navigation }: Props) {
         <View style={styles.previewCard}>
           <Text style={styles.previewHeading}>Profile preview</Text>
           <View style={styles.previewIdentity}>
-            {profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.previewPhoto} /> : <View style={styles.previewPhotoPlaceholder}><Ionicons name="person" size={17} color={colors.muted} /></View>}
+            {profile.photoUri ? isLocalPhoto(profile.photoUri) ? <Image source={{ uri: profile.photoUri }} style={styles.previewPhoto} /> : <SignedProfileImage path={profile.photoPath} uri={profile.photoUri} style={styles.previewPhoto} accessibilityLabel="Profile preview photo" /> : <View style={styles.previewPhotoPlaceholder}><Ionicons name="person" size={17} color={colors.muted} /></View>}
             <View style={{ flex: 1 }}><Text style={styles.previewName}>{profile.name.trim() || "Your display name"}</Text><Text style={styles.previewBio} numberOfLines={2}>{profile.bio.trim() || "Your bio will appear here"}</Text></View>
           </View>
           <Text style={styles.previewContactTitle}>Contact info</Text>
@@ -168,7 +174,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   actionSeparator: { width: 1, height: 14, backgroundColor: colors.border },
   formCard: { padding: 14, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, marginBottom: 18 },
   fieldLabel: { color: colors.text, fontSize: 12.5, fontWeight: "800", marginBottom: 7 },
-  input: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm + 1, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontSize: 14, backgroundColor: "#FFFFFF", marginBottom: 14 },
+  input: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm + 1, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontSize: 14, backgroundColor: colors.surface, marginBottom: 14 },
   fieldHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   counter: { color: colors.muted, fontSize: 10.5, marginBottom: 7 },
   bioInput: { height: 86, marginBottom: 0 },
@@ -199,7 +205,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   platformName: { color: colors.text, fontSize: 12, fontWeight: "800" },
   visibilityControl: { flexDirection: "row", alignItems: "center", gap: 4 },
   visibilityLabel: { color: colors.muted, fontSize: 10 },
-  socialInput: { minHeight: 39, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, marginTop: 5, color: colors.text, backgroundColor: "#FFFFFF", fontSize: 12 },
+  socialInput: { minHeight: 39, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, marginTop: 5, color: colors.text, backgroundColor: colors.surface, fontSize: 12 },
   privacyNote: { color: colors.muted, fontSize: 10.5, lineHeight: 15, marginTop: 9, marginBottom: 12, textAlign: "center" },
   footer: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.borderSoft, backgroundColor: colors.background },
   cancelButton: { flex: 1 },

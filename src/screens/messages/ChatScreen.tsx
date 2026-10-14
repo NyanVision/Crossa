@@ -1,7 +1,9 @@
-import React, { useEffect, useLayoutEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { appendInboxMessage, loadConversationMessages, loadInbox, markInboxConversationRead, removeInboxConversation } from "@/services/inbox";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
+import * as Crypto from "expo-crypto";
+import { appendInboxMessage, loadConversationMessagesPage, loadInbox, markInboxConversationRead, type MessageCursor } from "@/services/inbox";
 import { requireSupabase } from "@/services/supabase";
 import { recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
 import { type Palette, radii } from "@/theme/colors";
@@ -22,6 +24,10 @@ export function ChatScreen({ route, navigation }: Props) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendFailed, setSendFailed] = useState(false);
+  const [messageCursor, setMessageCursor] = useState<MessageCursor | null>(null);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const [earlierFailed, setEarlierFailed] = useState(false);
+  const clientMessageId = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: conversation?.displayName ?? "Private chat" });
@@ -34,9 +40,10 @@ export function ChatScreen({ route, navigation }: Props) {
       if (!active) return;
       setConversation(found);
       if (found) {
-        const savedMessages = await loadConversationMessages(found.id);
+        const page = await loadConversationMessagesPage(found.id, null, 50);
         if (!active) return;
-        setMessages(savedMessages);
+        setMessages(page.messages);
+        setMessageCursor(page.nextCursor);
         void markInboxConversationRead(found.id);
       } else setMessages([]);
     }).catch(() => {
@@ -47,6 +54,21 @@ export function ChatScreen({ route, navigation }: Props) {
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [route.params.chatId]);
+
+  const loadEarlier = async () => {
+    if (!conversation || !messageCursor || loadingEarlier) return;
+    setLoadingEarlier(true);
+    setEarlierFailed(false);
+    try {
+      const page = await loadConversationMessagesPage(conversation.id, messageCursor, 50);
+      setMessages((current) => {
+        const ids = new Set(current.map((message) => message.id));
+        return [...page.messages.filter((message) => !ids.has(message.id)), ...current];
+      });
+      setMessageCursor(page.nextCursor);
+    } catch { setEarlierFailed(true); }
+    finally { setLoadingEarlier(false); }
+  };
 
   useEffect(() => {
     if (!conversation) return;
@@ -72,14 +94,16 @@ export function ChatScreen({ route, navigation }: Props) {
     setSending(true);
     setSendFailed(false);
     try {
-      const sentMessage = await appendInboxMessage(conversation.id, messageText);
+      if (!clientMessageId.current) clientMessageId.current = Crypto.randomUUID();
+      const sentMessage = await appendInboxMessage(conversation.id, messageText, clientMessageId.current);
       if (!sentMessage) {
         setSendFailed(true);
         return;
       }
-      setMessages((current) => [...current, sentMessage]);
+      setMessages((current) => current.some((message) => message.id === sentMessage.id) ? current : [...current, sentMessage]);
       setConversation((current) => current ? { ...current, lastMessage: messageText, updatedAt: sentMessage.createdAt ?? new Date().toISOString() } : current);
       setText("");
+      clientMessageId.current = null;
     } catch {
       setSendFailed(true);
     } finally {
@@ -107,7 +131,6 @@ export function ChatScreen({ route, navigation }: Props) {
       { text: "Block", style: "destructive", onPress: async () => {
         try {
           await setProfileBlocked(conversation.profileId, true, conversation.displayName);
-          await removeInboxConversation(conversation.id);
           navigation.goBack();
         } catch { Alert.alert("Couldn’t block profile", "Please try again."); }
       } },
@@ -131,7 +154,7 @@ export function ChatScreen({ route, navigation }: Props) {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}>
       <View style={styles.personBar}>
-        <ProfilePhoto uri={conversation.photoUri} />
+        <ProfilePhoto uri={conversation.photoUri} path={conversation.photoPath} />
         <View style={styles.personMeta}><Text style={styles.personName} numberOfLines={1}>{conversation.displayName}</Text><View style={styles.privateLine}><Ionicons name="lock-closed-outline" size={12} color={colors.success} /><Text style={styles.privateLabel}>Private chat</Text></View></View>
         <Pressable onPress={openActions} style={styles.menuButton} accessibilityRole="button" accessibilityLabel="Chat actions"><Ionicons name="ellipsis-horizontal" size={20} color={colors.text} /></Pressable>
       </View>
@@ -142,6 +165,7 @@ export function ChatScreen({ route, navigation }: Props) {
         contentContainerStyle={messages.length ? styles.messageList : styles.messageListEmpty}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => <MessageBubble message={item} fallbackTime={conversation.updatedAt} />}
+        ListHeaderComponent={messageCursor || loadingEarlier || earlierFailed ? <Pressable onPress={() => void loadEarlier()} disabled={loadingEarlier} style={styles.earlierButton} accessibilityRole="button"><Text style={styles.earlierLabel}>{loadingEarlier ? "Loading earlier messages…" : earlierFailed ? "Couldn’t load earlier messages · Retry" : "Load earlier messages"}</Text></Pressable> : null}
         ListEmptyComponent={<View style={styles.emptyMessages}><View style={styles.emptyIcon}><Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.accent} /></View><Text style={styles.emptyTitle}>Your private chat is ready</Text><Text style={styles.emptyCopy}>Send a message to start chatting with {conversation.displayName}.</Text></View>}
       />
 
@@ -151,7 +175,7 @@ export function ChatScreen({ route, navigation }: Props) {
         <TextInput
         keyboardAppearance={isDark ? "dark" : "light"}
           value={text}
-          onChangeText={(value) => { setText(value); setSendFailed(false); }}
+          onChangeText={(value) => { setText(value); if (value !== text) clientMessageId.current = null; setSendFailed(false); }}
           placeholder="Write a message…"
           placeholderTextColor={colors.muted}
           style={styles.input}
@@ -169,11 +193,11 @@ export function ChatScreen({ route, navigation }: Props) {
   );
 }
 
-function ProfilePhoto({ uri }: { uri: string | null }) {
+function ProfilePhoto({ uri, path }: { uri: string | null; path?: string | null }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   return uri
-    ? <Image source={{ uri }} style={styles.photo} accessibilityLabel="Profile photo" />
+    ? <SignedProfileImage uri={uri} path={path} style={styles.photo} accessibilityLabel="Profile photo" />
     : <View style={[styles.photo, styles.photoPlaceholder]}><Ionicons name="person" size={20} color={colors.muted} /></View>;
 }
 
@@ -216,6 +240,8 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   timestampThem: { color: colors.muted },
   timestampMe: { color: colors.muted },
   emptyMessages: { alignItems: "center", padding: 18, maxWidth: 330, alignSelf: "center" },
+  earlierButton: { alignSelf: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill, backgroundColor: colors.accentSoft, marginBottom: 8 },
+  earlierLabel: { color: colors.accent, fontSize: 11.5, fontWeight: "800" },
   emptyIcon: { width: 56, height: 56, borderRadius: 20, backgroundColor: colors.accentSoft, alignItems: "center", justifyContent: "center", marginBottom: 14 },
   emptyTitle: { color: colors.text, fontSize: 16, fontWeight: "800", textAlign: "center" },
   emptyCopy: { color: colors.muted, fontSize: 12.5, lineHeight: 18, textAlign: "center", marginTop: 6 },

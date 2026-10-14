@@ -39,6 +39,7 @@ export async function loadNearbyProfiles(location: DiscoveryLocation): Promise<N
     displayName: row.display_name,
     age: typeof row.age === "number" ? row.age : null,
     photoUrl: await signedProfilePhotoUrl(row.photo_path),
+    photoPath: row.photo_path,
     distanceRange: row.distance_range,
     contactLinks: Array.isArray(row.social_links) ? row.social_links : [],
     genderLabel: row.gender_label,

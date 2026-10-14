@@ -1,4 +1,5 @@
 import * as Crypto from "expo-crypto";
+import * as ImageManipulator from "expo-image-manipulator";
 import type { CurrentUser, SocialPlatform } from "@/types";
 import { requireSupabase } from "@/services/supabase";
 
@@ -23,9 +24,11 @@ export function emptyProfile(userId: string | null): CurrentUser {
 
 export async function signedProfilePhotoUrl(path: string | null | undefined): Promise<string | null> {
   if (!path) return null;
-  const { data, error } = await requireSupabase().storage.from(AVATAR_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS);
-  if (error) throw error;
-  return data.signedUrl;
+  try {
+    const { data, error } = await requireSupabase().storage.from(AVATAR_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS);
+    if (error) return null;
+    return data.signedUrl;
+  } catch { return null; }
 }
 
 export async function loadProfile(userId: string | null): Promise<CurrentUser> {
@@ -59,13 +62,19 @@ export async function loadProfile(userId: string | null): Promise<CurrentUser> {
 }
 
 async function uploadProfilePhoto(userId: string, uri: string): Promise<string> {
-  const response = await fetch(uri);
+  // ImagePicker returns local file/content URIs on iOS and Android. Normalize
+  // both formats to a square JPEG before fetch(uri).blob() so HEIC and huge
+  // camera originals cannot exceed the private Storage bucket's limits.
+  const normalized = await ImageManipulator.manipulateAsync(uri, [
+    { resize: { width: 1024, height: 1024 } },
+  ], { compress: 0.82, format: ImageManipulator.SaveFormat.JPEG });
+  const response = await fetch(normalized.uri);
   if (!response.ok) throw new Error("The selected photo could not be read.");
   const blob = await response.blob();
-  const extension = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
-  const path = `${userId}/${Crypto.randomUUID()}.${extension}`;
+  if (blob.size < 1 || blob.size > 5 * 1024 * 1024) throw new Error("Choose a profile photo smaller than 5 MB.");
+  const path = `${userId}/${Crypto.randomUUID()}.jpg`;
   const { error } = await requireSupabase().storage.from(AVATAR_BUCKET).upload(path, blob, {
-    contentType: blob.type || "image/jpeg",
+    contentType: "image/jpeg",
     upsert: false,
   });
   if (error) throw error;
@@ -80,8 +89,10 @@ export async function saveProfile(profile: CurrentUser): Promise<void> {
 
   const oldPhotoPath = profile.photoPath;
   let photoPath = profile.photoUri ? profile.photoPath : null;
+  let newlyUploadedPath: string | null = null;
   if (profile.photoUri?.startsWith("file://") || profile.photoUri?.startsWith("content://")) {
     photoPath = await uploadProfilePhoto(user.id, profile.photoUri);
+    newlyUploadedPath = photoPath;
   }
 
   const { error: profileError } = await client.from("profiles").update({
@@ -91,7 +102,10 @@ export async function saveProfile(profile: CurrentUser): Promise<void> {
     photo_path: photoPath,
     updated_at: new Date().toISOString(),
   }).eq("id", user.id);
-  if (profileError) throw profileError;
+  if (profileError) {
+    if (newlyUploadedPath) await client.storage.from(AVATAR_BUCKET).remove([newlyUploadedPath]).catch(() => undefined);
+    throw profileError;
+  }
 
   const rows = profile.links
     .filter((link) => link.handle.trim().length > 0)

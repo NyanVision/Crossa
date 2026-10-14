@@ -13,7 +13,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, "AboutYou">;
 export function AboutYouScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  const { userId } = useAuth();
+  const { userId, setOnboardingStep } = useAuth();
   const [preferences, setPreferences] = useState<AboutYouPreferences>(emptyAboutYouPreferences());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,11 +30,12 @@ export function AboutYouScreen({ navigation }: Props) {
     setSaving(true);
     try {
       await saveAboutYouPreferences(userId, value);
+      await setOnboardingStep("profile");
       navigation.replace("Onboarding");
     } catch {
       Alert.alert("Couldn’t save your answers", "You can try again, or continue without them.", [
         { text: "Try again", style: "cancel" },
-        { text: "Continue without saving", onPress: () => navigation.replace("Onboarding") },
+        { text: "Continue without saving", onPress: () => { void setOnboardingStep("profile").then(() => navigation.replace("Onboarding")).catch(() => Alert.alert("Couldn’t save progress", "Please check your connection and try again.")); } },
       ]);
     } finally {
       setSaving(false);

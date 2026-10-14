@@ -1,6 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createNavigationContainerRef, type NavigatorScreenParams } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { DiscoverScreen } from "@/screens/discover/DiscoverScreen";
 import { ProfileDetailScreen } from "@/screens/discover/ProfileDetailScreen";
@@ -11,6 +12,7 @@ import { ProfileScreen } from "@/screens/profile/ProfileScreen";
 import { EditProfileScreen } from "@/screens/profile/EditProfileScreen";
 import { SettingsScreen } from "@/screens/settings/SettingsScreen";
 import { AboutYouSettingsScreen } from "@/screens/settings/AboutYouSettingsScreen";
+import { ModerationQueueScreen } from "@/screens/settings/ModerationQueueScreen";
 import { QrDiscoveryScreen } from "@/screens/discover/QrDiscoveryScreen";
 import { useTheme } from "@/context/AppearanceContext";
 import type { NearbyProfile } from "@/services/discovery";
@@ -25,10 +27,19 @@ export type AppStackParamList = {
   Chat: { chatId: string };
   MessageRequestDetail: { requestId: string };
   Settings: undefined;
+  ModerationQueue: undefined;
   QrDiscovery: { startInScan?: boolean } | undefined;
 };
 
-const Tab = createBottomTabNavigator();
+export type AppTabsParamList = {
+  DiscoverTab: NavigatorScreenParams<AppStackParamList> | undefined;
+  MessagesTab: NavigatorScreenParams<AppStackParamList> | undefined;
+  ProfileTab: NavigatorScreenParams<AppStackParamList> | undefined;
+};
+
+export const appNavigationRef = createNavigationContainerRef<AppTabsParamList>();
+
+const Tab = createBottomTabNavigator<AppTabsParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 function DiscoverStack() {
@@ -41,6 +52,7 @@ function DiscoverStack() {
       <Stack.Screen name="AboutYouSettings" component={AboutYouSettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
       <Stack.Screen name="QrDiscovery" component={QrDiscoveryScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ModerationQueue" component={ModerationQueueScreen} options={{ title: "Moderation" }} />
     </Stack.Navigator>
   );
 }
@@ -62,6 +74,7 @@ function ProfileStack() {
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       <Stack.Screen name="AboutYouSettings" component={AboutYouSettingsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ModerationQueue" component={ModerationQueueScreen} options={{ title: "Moderation" }} />
     </Stack.Navigator>
   );
 }

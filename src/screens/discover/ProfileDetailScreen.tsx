@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
 import { createMessageRequest } from "@/services/messageRequests";
 import { isProfileBlocked, recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
 import type { ContactPlatform, PublicContactLink } from "@/types";
@@ -91,9 +92,9 @@ export function ProfileDetailScreen({ route }: Props) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.profileHeader}>
-        {profile.photoUrl ? <Image source={{ uri: profile.photoUrl }} style={styles.photo} accessibilityLabel={`${profile.displayName}'s profile photo`} /> : <View style={styles.photoFallback}><Ionicons name="person" size={34} color={colors.muted} /></View>}
+        {profile.photoUrl ? <SignedProfileImage path={profile.photoPath} uri={profile.photoUrl} style={styles.photo} accessibilityLabel={`${profile.displayName}'s profile photo`} /> : <View style={styles.photoFallback}><Ionicons name="person" size={34} color={colors.muted} /></View>}
         <Text style={styles.name}>{profile.displayName}</Text>
-        {profile.age !== null ? <Text style={styles.genderLabel}>{profile.age}</Text> : null}
+        {profile.age !== null ? <Text style={styles.genderLabel}>{profile.age} · self-declared</Text> : null}
         {profile.genderLabel ? <Text style={styles.genderLabel}>{profile.genderLabel}</Text> : null}
         <View style={styles.distancePill}><Ionicons name="radio-outline" size={13} color={colors.muted} /><Text style={styles.distance}>{profile.distanceRange}</Text></View>
       </View>

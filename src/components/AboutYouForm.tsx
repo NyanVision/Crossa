@@ -85,7 +85,7 @@ export function AboutYouForm({ initialValue, submitLabel, saving = false, onSave
         {gender === "Self-describe" ? <View style={styles.descriptionField}><Text style={styles.fieldLabel}>How would you describe your gender? (optional)</Text><TextInput keyboardAppearance={isDark ? "dark" : "light"} value={genderDescription} onChangeText={setGenderDescription} placeholder="Your words" placeholderTextColor={colors.muted} maxLength={48} style={styles.input} accessibilityLabel="Describe your gender" /></View> : null}
         <View style={styles.visibilityRow}>
           <View style={styles.visibilityCopy}><Text style={styles.visibilityTitle}>Show this on my profile</Text><Text style={styles.visibilityHint}>{visibleGenderCanBeShown ? "Off by default. You control this separately." : gender === "Self-describe" ? "Add a description first to make it visible." : "Choose a gender option to enable this setting."}</Text></View>
-          <Switch value={showGenderOnProfile} onValueChange={setShowGenderOnProfile} disabled={!visibleGenderCanBeShown} trackColor={{ false: colors.border, true: colors.accent }} thumbColor="#FFFFFF" accessibilityLabel="Show gender on my profile" />
+          <Switch value={showGenderOnProfile} onValueChange={setShowGenderOnProfile} disabled={!visibleGenderCanBeShown} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.surface} accessibilityLabel="Show gender on my profile" />
         </View>
         <Pressable onPress={skipGender} style={styles.skipButton} accessibilityRole="button"><Text style={styles.skipText}>Skip this question</Text></Pressable>
       </View>
@@ -124,7 +124,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   questionTitle: { color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 },
   questionHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 7, marginBottom: 10 },
   optionsList: { gap: 6 },
-  optionRow: { minHeight: 43, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 10, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: "#FFFFFF" },
+  optionRow: { minHeight: 43, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 10, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.surface },
   optionSelected: { borderColor: colors.accentSoftBorder, backgroundColor: colors.surfaceAlt },
   radioOuter: { width: 19, height: 19, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   radioOuterSelected: { borderColor: colors.accent },

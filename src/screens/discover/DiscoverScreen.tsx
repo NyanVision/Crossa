@@ -1,10 +1,11 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useDiscoveryExpiry } from "@/hooks/useDiscoveryExpiry";
 import type { DiscoveryPreferences, DiscoveryLocation } from "@/services/discoveryPreferences";
 import { Button } from "@/components/Button";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
 import { filterProfilesByAudience, getDiscoverableProfiles, loadNearbyProfiles, type NearbyProfile } from "@/services/discovery";
 import { loadDiscoveryPreferences, saveDiscoveryPreferences } from "@/services/discoveryPreferences";
 import { loadAboutYouPreferences, type MeetingOption } from "@/services/aboutYouPreferences";
@@ -102,6 +103,7 @@ export function DiscoverScreen({ navigation }: Props) {
   };
 
   const turnOffDiscovery = async () => {
+    const confirmed = { discoveryOn, selectedDuration, expiresAt, profiles };
     setSavingDiscovery(true);
     setDiscoveryOn(false);
     setExpiresAt(null);
@@ -111,7 +113,11 @@ export function DiscoverScreen({ navigation }: Props) {
       await saveDiscoveryPreferences(userId, false, selectedDuration);
     } catch {
       Alert.alert("Couldn’t turn off discovery", "Please try again. The server may still show discovery as active until this change is saved.");
-      setDiscoveryReady(false);
+      setDiscoveryOn(confirmed.discoveryOn);
+      setSelectedDuration(confirmed.selectedDuration);
+      setExpiresAt(confirmed.expiresAt);
+      setProfiles(confirmed.profiles);
+      setRadarState("error");
     } finally { setSavingDiscovery(false); }
   };
 
@@ -211,7 +217,7 @@ function ProfileCard({ profile, onPress }: { profile: NearbyProfile; onPress: ()
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   return <View style={styles.profileCard}>
-    {profile.photoUrl ? <Image source={{ uri: profile.photoUrl }} style={styles.photo} accessibilityLabel={`${profile.displayName}'s profile photo`} /> : <View style={[styles.photo, styles.photoPlaceholder]}><Ionicons name="person" size={19} color={colors.muted} /></View>}
+    {profile.photoUrl ? <SignedProfileImage path={profile.photoPath} uri={profile.photoUrl} style={styles.photo} accessibilityLabel={`${profile.displayName}'s profile photo`} /> : <View style={[styles.photo, styles.photoPlaceholder]}><Ionicons name="person" size={19} color={colors.muted} /></View>}
     <View style={styles.profileInfo}><Text style={styles.profileName} numberOfLines={1}>{profile.displayName}</Text><Text style={styles.distance}><Ionicons name="radio-outline" size={12} color={colors.muted} />  {profile.distanceRange}</Text></View>
     <Pressable onPress={onPress} accessibilityRole="button" style={styles.viewButton}><Text style={styles.viewButtonText}>View profile</Text></Pressable>
   </View>;
@@ -250,7 +256,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   switchTrack: { width: 48, height: 28, borderRadius: radii.pill, justifyContent: "center", paddingHorizontal: 3, borderWidth: 1 },
   switchTrackOff: { backgroundColor: colors.borderSoft, borderColor: colors.border },
   switchTrackOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  switchThumb: { width: 20, height: 20, borderRadius: radii.pill, backgroundColor: "#FFFFFF", elevation: 2 },
+  switchThumb: { width: 20, height: 20, borderRadius: radii.pill, backgroundColor: colors.surface, elevation: 2 },
   switchThumbOff: { alignSelf: "flex-start" },
   switchThumbOn: { alignSelf: "flex-end" },
   editorActions: { flexDirection: "row", gap: 8 },

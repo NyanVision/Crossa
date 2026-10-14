@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
 import { TextField } from "@/components/TextField";
@@ -19,6 +20,24 @@ export function OnboardingScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    if (!userId) return () => { active = false; };
+    const key = `catchya:onboardingDraft:${userId}`;
+    void AsyncStorage.getItem(key).then((raw) => {
+      if (!active || !raw) return;
+      const draft = JSON.parse(raw) as { name?: string; age?: string; bio?: string; instagram?: string; telegram?: string };
+      setName(draft.name ?? ""); setAge(draft.age ?? ""); setBio(draft.bio ?? "");
+      setInstagram(draft.instagram ?? ""); setTelegram(draft.telegram ?? "");
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [userId]);
+
+  const saveDraft = (patch: Partial<{ name: string; age: string; bio: string; instagram: string; telegram: string }>) => {
+    const next = { name, age, bio, instagram, telegram, ...patch };
+    if (userId) void AsyncStorage.setItem(`catchya:onboardingDraft:${userId}`, JSON.stringify(next)).catch(() => undefined);
+  };
+
   const save = async () => {
     if (!name.trim()) { Alert.alert("Add a display name", "Enter the name you want people to see on your profile."); return; }
     const numericAge = age.trim() ? Number(age) : null;
@@ -37,7 +56,8 @@ export function OnboardingScreen() {
         ? { ...link, handle: instagram.trim(), hidden: true }
         : link.platform === "telegram" ? { ...link, handle: telegram.trim(), hidden: true } : link);
       await saveProfile(profile);
-      completeOnboarding();
+      await completeOnboarding();
+      if (userId) await AsyncStorage.removeItem(`catchya:onboardingDraft:${userId}`);
     } catch {
       Alert.alert("Couldn’t save your profile", "Check your connection and try again.");
     } finally { setSaving(false); }
@@ -53,13 +73,13 @@ export function OnboardingScreen() {
           <Button label="Take photo" onPress={async () => setPhotoUri((await takeProfilePhoto()) ?? photoUri)} />
         </View>
       </View>
-      <TextField label="Display name" value={name} onChangeText={setName} placeholder="How others will see you" maxLength={40} />
-      <TextField label="Age (optional)" value={age} onChangeText={(value) => setAge(value.replace(/\D/g, "").slice(0, 3))} placeholder="13 or older" keyboardType="number-pad" maxLength={3} />
-      <TextField label="Short bio" value={bio} onChangeText={setBio} placeholder="One line about you" maxLength={120} />
+      <TextField label="Display name" value={name} onChangeText={(value) => { setName(value); saveDraft({ name: value }); }} placeholder="How others will see you" maxLength={40} />
+      <TextField label="Age (optional)" value={age} onChangeText={(value) => { const next = value.replace(/\D/g, "").slice(0, 3); setAge(next); saveDraft({ age: next }); }} placeholder="13 or older" keyboardType="number-pad" maxLength={3} />
+      <TextField label="Short bio" value={bio} onChangeText={(value) => { setBio(value); saveDraft({ bio: value }); }} placeholder="One line about you" maxLength={120} />
       <Text style={styles.sectionTitle}>Add social links</Text>
       <Text style={styles.hint}>You type these in yourself — CatchYa never pulls from your accounts. You can hide any link later. Social links are never used to sign in.</Text>
-      <TextField label="Instagram" value={instagram} onChangeText={setInstagram} placeholder="@username" />
-      <TextField label="Telegram" value={telegram} onChangeText={setTelegram} placeholder="@username" />
+      <TextField label="Instagram" value={instagram} onChangeText={(value) => { setInstagram(value); saveDraft({ instagram: value }); }} placeholder="@username" />
+      <TextField label="Telegram" value={telegram} onChangeText={(value) => { setTelegram(value); saveDraft({ telegram: value }); }} placeholder="@username" />
       <Button label="Continue" variant="primary" loading={saving} disabled={saving} onPress={() => void save()} />
     </ScrollView>
   );

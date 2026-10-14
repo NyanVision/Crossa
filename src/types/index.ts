@@ -67,6 +67,8 @@ export interface PublicProfile {
   displayName: string;
   age: number | null;
   photoUrl: string | null;
+  /** Private Storage object path for refreshing expiring signed URLs. */
+  photoPath?: string | null;
   distanceRange: string;
   contactLinks: PublicContactLink[];
   /** Present only when the profile owner explicitly chose to show their gender. */
@@ -80,6 +82,8 @@ export interface InboxConversation {
   profileId: string;
   displayName: string;
   photoUri: string | null;
+  /** Private Storage path used only to renew signed URLs; never show it as a URL. */
+  photoPath?: string | null;
   lastMessage: string;
   updatedAt: string;
   unreadCount: number;

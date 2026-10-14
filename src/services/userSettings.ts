@@ -24,6 +24,8 @@ export async function saveUserSettings(userId: string | null, patch: Partial<Use
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.appearance !== undefined) update.appearance = patch.appearance;
   if (patch.notificationsEnabled !== undefined) update.notifications_enabled = patch.notificationsEnabled;
-  const { error } = await requireSupabase().from("user_preferences").update(update).eq("user_id", userId);
+  const { data, error } = await requireSupabase().from("user_preferences").update(update)
+    .eq("user_id", userId).select("user_id").maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error("Could not save these account preferences.");
 }
