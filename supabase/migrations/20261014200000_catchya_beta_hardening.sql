@@ -543,7 +543,7 @@ begin
   end if;
   insert into public.messages(request_id, sender_id, body, client_message_id)
     values (p_request_id, v_uid, trim(p_body), p_client_message_id)
-    on conflict (request_id, sender_id, client_message_id) where client_message_id is not null do nothing;
+    on conflict do nothing;
   select * into v_row from public.messages m where m.request_id = p_request_id
     and m.sender_id = v_uid and m.client_message_id = p_client_message_id;
   if v_row.body is distinct from trim(p_body) then raise exception 'Message id was already used for different text'; end if;
