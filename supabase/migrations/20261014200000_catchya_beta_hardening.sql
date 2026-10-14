@@ -319,7 +319,10 @@ begin
 end;
 $$;
 
-create or replace function public.reactivate_my_account()
+-- The base migration defined this RPC as void; PostgreSQL requires DROP before a
+-- function can change its return type. No database objects depend on this RPC.
+drop function if exists public.reactivate_my_account();
+create function public.reactivate_my_account()
 returns boolean language plpgsql security definer set search_path = ''
 as $$
 declare v_uid uuid := auth.uid(); v_state text;
