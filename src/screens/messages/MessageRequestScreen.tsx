@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
-import { acceptInboxRequest, declineInboxRequest, loadInbox, markInboxConversationRead, removeInboxConversation } from "@/services/inbox";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
+import { acceptInboxRequest, declineInboxRequest, loadInbox, markInboxConversationRead } from "@/services/inbox";
 import { recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
 import type { InboxConversation } from "@/types";
 import { type Palette, radii } from "@/theme/colors";
@@ -73,7 +74,6 @@ export function MessageRequestScreen({ route, navigation }: Props) {
         setWorking(true);
         try {
           await setProfileBlocked(request.profileId, true, request.displayName);
-          await removeInboxConversation(request.id);
           navigation.goBack();
         } catch { Alert.alert("Couldn’t block profile", "Please try again."); }
         finally { setWorking(false); }
@@ -106,7 +106,7 @@ export function MessageRequestScreen({ route, navigation }: Props) {
       <View style={styles.header}><Pressable onPress={() => navigation.goBack()} style={styles.backButton} accessibilityLabel="Back"><Ionicons name="arrow-back" size={20} color={colors.text} /></Pressable><Text style={styles.headerTitle}>Message request</Text><View style={{ width: 40 }} /></View>
 
       <View style={styles.senderCard}>
-        {request.photoUri ? <Image source={{ uri: request.photoUri }} style={styles.photo} accessibilityLabel={`${request.displayName}'s profile photo`} /> : <View style={styles.photoPlaceholder}><Ionicons name="person" size={33} color={colors.muted} /></View>}
+        {request.photoUri ? <SignedProfileImage path={request.photoPath} uri={request.photoUri} style={styles.photo} accessibilityLabel={`${request.displayName}'s profile photo`} /> : <View style={styles.photoPlaceholder}><Ionicons name="person" size={33} color={colors.muted} /></View>}
         <Text style={styles.senderName}>{request.displayName}</Text>
         {request.profilePreview?.distanceRange ? <View style={styles.distancePill}><Ionicons name="radio-outline" size={13} color={colors.muted} /><Text style={styles.distance}>{request.profilePreview.distanceRange}</Text></View> : null}
       </View>

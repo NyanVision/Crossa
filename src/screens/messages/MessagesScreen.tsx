@@ -1,8 +1,10 @@
-import React, { useCallback, useState } from "react";
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
 import { useFocusEffect } from "@react-navigation/native";
-import { loadInbox, removeInboxConversation } from "@/services/inbox";
+import { loadInboxPage, type InboxCursor } from "@/services/inbox";
+import { requireSupabase } from "@/services/supabase";
 import { recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
 import type { InboxConversation, InboxStatus } from "@/types";
 import { type Palette, radii } from "@/theme/colors";
@@ -17,16 +19,58 @@ export function MessagesScreen({ navigation }: Props) {
   const [tab, setTab] = useState<InboxStatus>("chat");
   const [conversations, setConversations] = useState<InboxConversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [cursor, setCursor] = useState<InboxCursor | null>(null);
 
   const refresh = useCallback(() => {
     let active = true;
-    loadInbox().then((items) => { if (active) setConversations(items); })
-      .catch(() => { if (active) setConversations([]); })
+    setLoading(true);
+    setLoadError(null);
+    loadInboxPage(null).then((page) => { if (active) { setConversations(page.conversations); setCursor(page.nextCursor); } })
+      .catch(() => { if (active) setLoadError("Couldn’t load your inbox. Check your connection and retry."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
   useFocusEffect(refresh);
+
+  useEffect(() => {
+    let active = true;
+    let channel: ReturnType<ReturnType<typeof requireSupabase>["channel"]> | null = null;
+    const client = requireSupabase();
+    void client.auth.getUser().then(({ data: { user }, error }) => {
+      if (!active || error || !user) return;
+      const reloadInbox = () => {
+        void loadInboxPage(null).then((page) => {
+          if (active) { setConversations(page.conversations); setCursor(page.nextCursor); setLoadError(null); }
+        }).catch(() => { if (active) setLoadError("Couldn’t refresh your inbox. Check your connection and retry."); });
+      };
+      channel = client.channel(`inbox:${user.id}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, reloadInbox)
+        .on("postgres_changes", { event: "*", schema: "public", table: "connection_requests" }, reloadInbox)
+        .subscribe();
+    });
+    return () => {
+      active = false;
+      if (channel) void client.removeChannel(channel);
+    };
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!cursor || loadingMore || loading) return;
+    setLoadError(null);
+    setLoadingMore(true);
+    try {
+      const page = await loadInboxPage(cursor);
+      setConversations((current) => {
+        const seen = new Set(current.map((item) => item.id));
+        return [...current, ...page.conversations.filter((item) => !seen.has(item.id))];
+      });
+      setCursor(page.nextCursor);
+    } catch { setLoadError("Couldn’t load older conversations. Tap to retry."); }
+    finally { setLoadingMore(false); }
+  }, [cursor, loadingMore, loading]);
 
   const chats = conversations.filter((item) => item.status === "chat");
   const requests = conversations.filter((item) => item.status === "request");
@@ -51,7 +95,6 @@ export function MessagesScreen({ navigation }: Props) {
       { text: "Block", style: "destructive", onPress: async () => {
         try {
           await setProfileBlocked(conversation.profileId, true, conversation.displayName);
-          await removeInboxConversation(conversation.id);
           setConversations((current) => current.filter((item) => item.id !== conversation.id));
         } catch { Alert.alert("Couldn’t block profile", "Please try again."); }
       } },
@@ -78,7 +121,11 @@ export function MessagesScreen({ navigation }: Props) {
         keyExtractor={(item) => item.id}
         contentContainerStyle={visible.length ? styles.list : styles.emptyList}
         renderItem={({ item }) => <ConversationRow conversation={item} onPress={() => onSelect(item)} onMenu={() => openMenu(item)} />}
-        ListEmptyComponent={<EmptyInbox tab={tab} loading={loading} />}
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.35}
+        ListHeaderComponent={loadError && conversations.length ? <Pressable onPress={() => void loadMore()}><Text style={styles.loadError}>{loadError} Retry</Text></Pressable> : null}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: 14 }} /> : null}
+        ListEmptyComponent={<EmptyInbox tab={tab} loading={loading} error={loadError} retry={refresh} />}
       />
     </View>
   );
@@ -94,7 +141,7 @@ function ConversationRow({ conversation, onPress, onMenu }: { conversation: Inbo
   const { colors } = useTheme();
   return <View style={styles.conversationCard}>
     <Pressable style={styles.conversationMain} onPress={onPress} accessibilityRole="button">
-      <ProfilePhoto uri={conversation.photoUri} size={50} />
+      <ProfilePhoto uri={conversation.photoUri} path={conversation.photoPath} size={50} />
       <View style={styles.messageMeta}>
         <View style={styles.nameLine}><Text style={[styles.name, conversation.unreadCount > 0 && styles.unreadText]} numberOfLines={1}>{conversation.displayName}</Text><Text style={styles.time}>{formatTime(conversation.updatedAt)}</Text></View>
         <View style={styles.previewLine}><Text style={[styles.preview, conversation.unreadCount > 0 && styles.unreadPreview]} numberOfLines={1}>{conversation.lastMessage || (conversation.status === "request" ? "Open to review this message request" : "No messages yet")}</Text>{conversation.unreadCount > 0 ? <View style={styles.unreadDot} /> : null}</View>
@@ -104,20 +151,21 @@ function ConversationRow({ conversation, onPress, onMenu }: { conversation: Inbo
   </View>;
 }
 
-function ProfilePhoto({ uri, size }: { uri: string | null; size: number }) {
+function ProfilePhoto({ uri, path, size }: { uri: string | null; path?: string | null; size: number }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
-  return uri ? <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.borderSoft }} accessibilityLabel="Profile photo" /> : <View style={[styles.photoPlaceholder, { width: size, height: size, borderRadius: size / 2 }]}><Ionicons name="person" size={size * 0.43} color={colors.muted} /></View>;
+  return uri ? <SignedProfileImage uri={uri} path={path} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.borderSoft }} accessibilityLabel="Profile photo" /> : <View style={[styles.photoPlaceholder, { width: size, height: size, borderRadius: size / 2 }]}><Ionicons name="person" size={size * 0.43} color={colors.muted} /></View>;
 }
 
-function EmptyInbox({ tab, loading }: { tab: InboxStatus; loading: boolean }) {
+function EmptyInbox({ tab, loading, error, retry }: { tab: InboxStatus; loading: boolean; error: string | null; retry: () => unknown }) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const isChats = tab === "chat";
   return <View style={styles.emptyWrap}>
     <View style={styles.emptyIcon}><Ionicons name={loading ? "chatbubbles-outline" : isChats ? "chatbubble-ellipses-outline" : "mail-open-outline"} size={27} color={colors.accent} /></View>
-    <Text style={styles.emptyTitle}>{loading ? "Loading inbox…" : isChats ? "No chats yet" : "No new requests"}</Text>
-    <Text style={styles.emptyCopy}>{loading ? "Your conversations will appear here." : isChats ? "When you accept a message request, your conversation will show up here." : "New message requests will appear here. They stay separate from your chats until you accept them."}</Text>
+    <Text style={styles.emptyTitle}>{loading ? "Loading inbox…" : error ? "Inbox unavailable" : isChats ? "No chats yet" : "No new requests"}</Text>
+    <Text style={styles.emptyCopy}>{loading ? "Your conversations will appear here." : error ?? (isChats ? "When you accept a message request, your conversation will show up here." : "New message requests will appear here. They stay separate from your chats until you accept them.")}</Text>
+    {error && !loading ? <Pressable onPress={() => { void retry(); }} style={styles.retryButton}><Text style={styles.retryLabel}>Retry</Text></Pressable> : null}
   </View>;
 }
 
@@ -166,4 +214,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   emptyIcon: { width: 60, height: 60, borderRadius: 21, alignItems: "center", justifyContent: "center", backgroundColor: colors.accentSoft, marginBottom: 15 },
   emptyTitle: { color: colors.text, fontSize: 16, fontWeight: "800", textAlign: "center" },
   emptyCopy: { color: colors.muted, fontSize: 12.5, lineHeight: 18, marginTop: 7, textAlign: "center" },
+  loadError: { color: colors.danger, fontSize: 12, textAlign: "center", padding: 10 },
+  retryButton: { marginTop: 14, paddingHorizontal: 18, paddingVertical: 9, borderRadius: radii.pill, backgroundColor: colors.accentSoft },
+  retryLabel: { color: colors.accent, fontSize: 12, fontWeight: "800" },
 });

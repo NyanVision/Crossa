@@ -1,9 +1,10 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
 import { loadProfile } from "@/services/profileStorage";
 import { loadAboutYouPreferences, visibleGenderLabel } from "@/services/aboutYouPreferences";
 import type { CurrentUser, SocialPlatform } from "@/types";
@@ -49,7 +50,7 @@ export function ProfileScreen({ navigation }: Props) {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.topbar}><Text style={styles.h1}>Your profile</Text><Pressable onPress={() => navigation.navigate("Settings")} style={styles.settingsButton} accessibilityRole="button" accessibilityLabel="Settings"><Ionicons name="settings-outline" size={19} color={colors.text} /></Pressable></View>
       <View style={styles.profileCard}>
-        {profile?.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.avatar} /> : <View style={styles.avatarPlaceholder}><Ionicons name="person" size={27} color={colors.muted} /></View>}
+        {profile?.photoUri ? <SignedProfileImage path={profile.photoPath} uri={profile.photoUri} style={styles.avatar} accessibilityLabel="Your profile photo" /> : <View style={styles.avatarPlaceholder}><Ionicons name="person" size={27} color={colors.muted} /></View>}
         <View style={styles.identity}><Text style={styles.name}>{profile?.name || "Add your display name"}</Text>{publicGender ? <Text style={styles.gender}>{publicGender}</Text> : null}<Text style={styles.bio} numberOfLines={2}>{profile?.bio || "Add a short bio"}</Text></View>
         <Pressable onPress={() => navigation.navigate("EditProfile")} style={styles.editIcon} accessibilityRole="button" accessibilityLabel="Edit profile"><Ionicons name="create-outline" size={19} color={colors.accent} /></Pressable>
       </View>

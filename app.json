@@ -24,8 +24,9 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
@@ -43,7 +44,8 @@
         "expo-image-picker",
         {
           "photosPermission": "CatchYa needs photo library access so you can choose a profile photo.",
-          "cameraPermission": "CatchYa needs camera access so you can take a profile photo."
+          "cameraPermission": "CatchYa needs camera access so you can take a profile photo.",
+          "microphonePermission": false
         }
       ],
       [
@@ -63,9 +65,6 @@
       "expo-font"
     ],
     "extra": {
-      "googleExpoClientId": "REPLACE_WITH_EXPO_GO_CLIENT_ID",
-      "googleIosClientId": "REPLACE_WITH_IOS_CLIENT_ID",
-      "googleAndroidClientId": "REPLACE_WITH_ANDROID_CLIENT_ID",
       "eas": {
         "projectId": "392a2837-7446-46bc-b343-569403b2793c"
       }

@@ -1,12 +1,14 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { useDiscoveryExpiry } from "@/hooks/useDiscoveryExpiry";
 import { useAuth } from "@/context/AuthContext";
 import { useAppAppearance, type AppearanceChoice } from "@/context/AppearanceContext";
-import { registerForPushNotifications } from "@/services/notifications";
+import { hasPushRegistrationForCurrentUser, registerForPushNotifications, unregisterPushDevice } from "@/services/notifications";
+import { SignedProfileImage } from "@/components/SignedProfileImage";
+import { loadModeratorRole, type ModeratorRole } from "@/services/moderation";
 import { loadProfile } from "@/services/profileStorage";
 import { emptyAboutYouPreferences, loadAboutYouPreferences, visibleGenderLabel, type AboutYouPreferences } from "@/services/aboutYouPreferences";
 import { loadDiscoveryPreferences, saveDiscoveryPreferences, type DiscoveryPreferences, type VisibilityDuration } from "@/services/discoveryPreferences";
@@ -38,42 +40,54 @@ export function SettingsScreen({ navigation }: Props) {
   const [discovery, setDiscovery] = useState<DiscoveryPreferences>({ enabled: false, duration: "15 minutes", expiresAt: null });
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [notificationsOn, setNotificationsOn] = useState(false);
+  const [pushCleanupPending, setPushCleanupPending] = useState(false);
+  const [moderatorRole, setModeratorRole] = useState<ModeratorRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [settingsLoadError, setSettingsLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [discoveryBusy, setDiscoveryBusy] = useState(false);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
   const [showDiscoveryDurationPicker, setShowDiscoveryDurationPicker] = useState(false);
   const [draftDiscoveryDuration, setDraftDiscoveryDuration] = useState<VisibilityDuration>("15 minutes");
 
   useFocusEffect(useCallback(() => {
     let active = true;
     setLoading(true);
+    setSettingsLoadError(false);
     const notificationKey = `catchya:notificationsEnabled:${userId ?? "local"}`;
     Promise.all([
-      loadProfile(userId).catch(() => null),
-      loadDiscoveryPreferences(userId).catch(() => ({ enabled: false, duration: "15 minutes" as const, expiresAt: null })),
-      loadBlockedProfiles().catch(() => []),
-      loadAboutYouPreferences(userId).catch(() => emptyAboutYouPreferences()),
+      loadProfile(userId),
+      loadDiscoveryPreferences(userId),
+      loadBlockedProfiles(),
+      loadAboutYouPreferences(userId),
       AsyncStorage.getItem(notificationKey).catch(() => null),
-      loadUserSettings(userId).catch(() => null),
-    ]).then(([savedProfile, savedDiscovery, savedBlocked, savedAboutYou, savedNotifications, cloudSettings]) => {
+      loadUserSettings(userId),
+      loadModeratorRole(),
+      hasPushRegistrationForCurrentUser(),
+    ]).then(([savedProfile, savedDiscovery, savedBlocked, savedAboutYou, savedNotifications, cloudSettings, currentModeratorRole, hasPushRegistration]) => {
       if (!active) return;
       setProfile(savedProfile);
       setDiscovery(savedDiscovery);
       setBlockedProfiles(savedBlocked);
       setAboutYou(savedAboutYou);
-      setNotificationsOn(cloudSettings?.notificationsEnabled ?? savedNotifications === "true");
-    }).finally(() => { if (active) setLoading(false); });
+      const savedNotificationsEnabled = cloudSettings?.notificationsEnabled ?? savedNotifications === "true";
+      setNotificationsOn(savedNotificationsEnabled);
+      setPushCleanupPending(hasPushRegistration && !savedNotificationsEnabled);
+      setModeratorRole(currentModeratorRole);
+    }).catch(() => { if (active) setSettingsLoadError(true); })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [userId]));
+  }, [reloadKey, userId]));
 
   useDiscoveryExpiry(userId, discovery.expiresAt, setDiscovery);
 
   const toggleDiscovery = async (enabled: boolean) => {
     if (discoveryBusy) return;
     if (!enabled) {
+      const confirmed = discovery;
       setDiscoveryBusy(true);
-      setDiscovery((current) => ({ ...current, enabled: false, expiresAt: null }));
-      try { await saveDiscoveryPreferences(userId, false, discovery.duration); }
-      catch { Alert.alert("Couldn’t turn off discovery", "Your change could not be saved. Reopen this screen and retry."); }
+      try { setDiscovery(await saveDiscoveryPreferences(userId, false, discovery.duration)); }
+      catch { setDiscovery(confirmed); Alert.alert("Couldn’t turn off discovery", "Your saved visibility is still active. Please try again."); }
       finally { setDiscoveryBusy(false); }
       return;
     }
@@ -107,6 +121,10 @@ export function SettingsScreen({ navigation }: Props) {
     if (discoveryBusy || loading) return;
     setDiscoveryBusy(true);
     try {
+      if (discovery.enabled && await requestLocationPermission() !== "granted") {
+        Alert.alert("Location permission needed", "Allow foreground location before refreshing your active discovery session.");
+        return;
+      }
       const position = discovery.enabled ? await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }) : null;
       setDiscovery(await saveDiscoveryPreferences(userId, discovery.enabled, duration, position ? { latitude: position.coords.latitude, longitude: position.coords.longitude } : undefined));
     } catch {
@@ -115,27 +133,47 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   const toggleNotifications = async (enabled: boolean) => {
+    if (notificationsBusy) return;
     const key = `catchya:notificationsEnabled:${userId ?? "local"}`;
+    setNotificationsBusy(true);
     if (!enabled) {
-      setNotificationsOn(false);
-      await AsyncStorage.setItem(key, "false");
-      if (userId) await saveUserSettings(userId, { notificationsEnabled: false });
+      try {
+        if (userId) await saveUserSettings(userId, { notificationsEnabled: false });
+        setNotificationsOn(false);
+        await AsyncStorage.setItem(key, "false").catch(() => undefined);
+        try { await unregisterPushDevice(); setPushCleanupPending(false); }
+        catch { setPushCleanupPending(true); Alert.alert("Notifications are off", "Your account preference is off, but this device registration could not be removed. Retry the cleanup below."); }
+      } catch {
+        Alert.alert("Couldn’t turn off notifications", "Your saved preference has not changed. Please try again.");
+      } finally { setNotificationsBusy(false); }
       return;
     }
     try {
       const token = await registerForPushNotifications();
-      setNotificationsOn(!!token);
-      await AsyncStorage.setItem(key, token ? "true" : "false");
-      if (userId) await saveUserSettings(userId, { notificationsEnabled: !!token });
       if (!token) {
-        Alert.alert("Notifications unavailable", "Enable notifications for CatchYa in your device settings. Push notification delivery also needs a configured app service.", [
+        Alert.alert("Notifications unavailable", "Allow notifications on a physical iOS or Android device. Push delivery must also be configured for this app.", [
           { text: "Open Settings", onPress: () => { void Linking.openSettings(); } },
           { text: "Cancel", style: "cancel" },
         ]);
+        return;
       }
+      if (userId) await saveUserSettings(userId, { notificationsEnabled: true });
+      await AsyncStorage.setItem(key, "true").catch(() => undefined);
+      setPushCleanupPending(false);
+      setNotificationsOn(true);
     } catch {
+      try { await unregisterPushDevice(); setPushCleanupPending(false); }
+      catch { setPushCleanupPending(true); /* the preference remains disabled and suppresses delivery */ }
       Alert.alert("Couldn’t enable notifications", "Please try again or check your device settings.");
-    }
+    } finally { setNotificationsBusy(false); }
+  };
+
+  const retryPushCleanup = async () => {
+    if (notificationsBusy) return;
+    setNotificationsBusy(true);
+    try { await unregisterPushDevice(); setPushCleanupPending(false); }
+    catch { Alert.alert("Device cleanup still pending", "Check your connection and retry. Push delivery remains disabled for this account."); }
+    finally { setNotificationsBusy(false); }
   };
 
   const unblock = async (person: BlockedProfile) => {
@@ -149,7 +187,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   const confirmSignOut = () => Alert.alert("Sign out of CatchYa?", "You can sign back in at any time.", [
     { text: "Cancel", style: "cancel" },
-    { text: "Sign out", style: "destructive", onPress: () => { void signOut(); } },
+    { text: "Sign out", style: "destructive", onPress: () => { void signOut().catch(() => Alert.alert("Couldn’t safely sign out", "CatchYa could not disable push notifications or remove this device registration. Check your connection and retry.")); } },
   ]);
 
   const confirmDeactivate = () => Alert.alert("Deactivate your account?", "Your profile will be hidden, discovery will turn off, and your saved data will remain so you can reactivate by signing in again.", [
@@ -170,6 +208,8 @@ export function SettingsScreen({ navigation }: Props) {
 
   const visibleLinks = (profile?.links ?? []).filter((link) => !link.hidden && link.handle.trim().length > 0);
 
+  if (settingsLoadError) return <View style={styles.loadFailure}><Ionicons name="cloud-offline-outline" size={30} color={colors.danger} /><Text style={styles.failureTitle}>Couldn’t load Settings</Text><Text style={styles.failureCopy}>Your saved privacy and account preferences could not be loaded. Check your connection and retry.</Text><Pressable onPress={() => setReloadKey((value) => value + 1)} style={styles.failureButton} accessibilityRole="button"><Text style={styles.failureButtonText}>Retry</Text></Pressable></View>;
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.pageHeading}><Text style={styles.subtitle}>Control what you share and when people can find you.</Text></View>
@@ -189,12 +229,14 @@ export function SettingsScreen({ navigation }: Props) {
         <SettingsRow icon="person-circle-outline" title="Edit your profile" description="Change your photo, name, bio, and contact links" onPress={() => navigation.navigate("EditProfile")} />
       </View>
 
+      {moderatorRole ? <><SectionHeading title="Trust & safety" /><View style={styles.card}><SettingsRow icon="shield-checkmark-outline" title="Moderation queue" description="Review open profile reports" onPress={() => navigation.navigate("ModerationQueue")} /></View></> : null}
+
       <SectionHeading title="Discoverability" caption="Optional · off by default" />
       <View style={styles.card}>
         <View style={styles.switchRow}>
           <View style={styles.leadingIcon}><Ionicons name={discovery.enabled ? "eye-outline" : "eye-off-outline"} size={18} color={discovery.enabled ? colors.success : colors.accent} /></View>
           <View style={styles.rowCopy}><Text style={styles.rowTitle}>Nearby discovery</Text><Text style={styles.rowDescription}>{discovery.enabled ? "You are visible to other opted-in people nearby." : "You’re not discoverable. Turn this on only when you choose."}</Text></View>
-          {loading || discoveryBusy ? <ActivityIndicator color={colors.accent} /> : <Switch value={discovery.enabled} onValueChange={toggleDiscovery} trackColor={{ false: colors.border, true: colors.accent }} thumbColor="#FFFFFF" accessibilityLabel="Nearby discovery" />}
+          {loading || discoveryBusy ? <ActivityIndicator color={colors.accent} /> : <Switch value={discovery.enabled} onValueChange={toggleDiscovery} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.surface} accessibilityLabel="Nearby discovery" />}
         </View>
         <View style={styles.privacyCallout}><Ionicons name="shield-checkmark-outline" size={16} color={colors.success} /><Text style={styles.calloutText}>Your exact location is never displayed. People see an approximate distance range.</Text></View>
         <View style={styles.durationHeading}><Text style={styles.rowTitle}>Visibility duration</Text><Text style={styles.rowDescription}>{discovery.enabled ? "The timer starts when you save a duration." : "Choose how long discovery stays on."}</Text></View>
@@ -209,8 +251,8 @@ export function SettingsScreen({ navigation }: Props) {
         <View style={styles.privacyIntro}><Ionicons name="eye-outline" size={17} color={colors.accent} /><Text style={styles.privacyIntroText}>Your photo, display name, and bio appear on your profile. Social links appear only when marked visible. Gender stays private unless you choose to show it.</Text></View>
         <SettingsRow icon="people-outline" title="A little about you" description="Gender is private by default; Discover choices stay private" onPress={() => navigation.navigate("AboutYouSettings")} />
         <View style={styles.rowDivider} />
-        <View style={styles.previewHeader}>
-          {profile?.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.avatar} accessibilityLabel="Profile photo preview" /> : <View style={[styles.avatar, styles.avatarPlaceholder]}><Ionicons name="person" size={19} color={colors.muted} /></View>}
+          <View style={styles.previewHeader}>
+          {profile?.photoUri ? <SignedProfileImage path={profile.photoPath} uri={profile.photoUri} style={styles.avatar} accessibilityLabel="Profile photo preview" /> : <View style={[styles.avatar, styles.avatarPlaceholder]}><Ionicons name="person" size={19} color={colors.muted} /></View>}
           <View style={styles.previewIdentity}><Text style={styles.profileName}>{profile?.name?.trim() || "No display name added"}</Text>{visibleGenderLabel(aboutYou) ? <Text style={styles.profileGender}>{visibleGenderLabel(aboutYou)}</Text> : null}<Text style={styles.profileBio} numberOfLines={2}>{profile?.bio?.trim() || "No bio added"}</Text></View>
           <Pressable onPress={() => navigation.navigate("EditProfile")} style={styles.editLink} accessibilityRole="button"><Text style={styles.editLinkText}>Edit</Text></Pressable>
         </View>
@@ -227,8 +269,9 @@ export function SettingsScreen({ navigation }: Props) {
         <View style={styles.switchRow}>
           <View style={styles.leadingIcon}><Ionicons name="notifications-outline" size={18} color={colors.text} /></View>
           <View style={styles.rowCopy}><Text style={styles.rowTitle}>Push notifications</Text><Text style={styles.rowDescription}>Get alerts for message requests and chats.</Text></View>
-          <Switch value={notificationsOn} onValueChange={toggleNotifications} trackColor={{ false: colors.border, true: colors.accent }} thumbColor="#FFFFFF" accessibilityLabel="Push notifications" />
+          {loading || notificationsBusy ? <ActivityIndicator color={colors.accent} /> : <Switch value={notificationsOn} onValueChange={toggleNotifications} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={colors.surface} accessibilityLabel="Push notifications" />}
         </View>
+        {pushCleanupPending ? <Pressable onPress={() => void retryPushCleanup()} disabled={notificationsBusy} style={styles.failureButton} accessibilityRole="button"><Text style={styles.failureButtonText}>Retry device cleanup</Text></Pressable> : null}
       </View>
 
       <SectionHeading title="Account" />
@@ -283,6 +326,11 @@ function SettingsRow({ icon, title, description, onPress, destructive = false }:
 
 const makeStyles = (colors: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  loadFailure: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28, backgroundColor: colors.background },
+  failureTitle: { color: colors.text, fontSize: 16, fontWeight: "800", marginTop: 12, textAlign: "center" },
+  failureCopy: { color: colors.muted, fontSize: 12.5, lineHeight: 18, marginTop: 7, maxWidth: 320, textAlign: "center" },
+  failureButton: { marginTop: 18, minWidth: 120, minHeight: 42, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 18 },
+  failureButtonText: { color: colors.accentInk, fontSize: 13, fontWeight: "800" },
   content: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 34 },
   pageHeading: { marginBottom: 14 },
   subtitle: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 4 },
