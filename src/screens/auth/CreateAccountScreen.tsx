@@ -39,7 +39,7 @@ export function CreateAccountScreen({ navigation }: Props) {
       <TextField label="Confirm password" secureTextEntry value={confirm} onChangeText={setConfirm} placeholder="Re-enter password" />
       <Button label="Create account" variant="primary" loading={loading} disabled={!isSupabaseConfigured || loading} onPress={onSubmit} />
       <Text style={styles.link} onPress={() => navigation.navigate("SignIn")}>Already have an account? Sign in</Text>
-      <Text style={styles.hint}>By creating an account, you agree to CatchYa's <Text style={styles.linkInline} onPress={() => navigation.navigate("PrivacyPolicy")}>Privacy Policy</Text>.</Text>
+      <Text style={styles.hint}>By creating an account, you agree to Crossa's <Text style={styles.linkInline} onPress={() => navigation.navigate("PrivacyPolicy")}>Privacy Policy</Text>.</Text>
     </ScrollView>
   );
 }
