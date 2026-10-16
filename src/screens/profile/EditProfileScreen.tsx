@@ -1,3 +1,4 @@
+import { SocialLogo } from "@/components/SocialLogo";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,11 +19,6 @@ const platformLabels: Record<SocialPlatform, string> = {
   facebook: "Facebook", telegram: "Telegram", x: "X", tiktok: "TikTok",
   instagram: "Instagram", line: "LINE", whatsapp: "WhatsApp", wechat: "WeChat",
 };
-const platformIcons: Record<SocialPlatform, keyof typeof Ionicons.glyphMap> = {
-  facebook: "logo-facebook", telegram: "paper-plane-outline", x: "logo-twitter",
-  tiktok: "musical-notes-outline", instagram: "logo-instagram",
-  line: "chatbubble-ellipses-outline", whatsapp: "chatbubble-outline", wechat: "chatbubbles-outline",
-};
 const getPlatformColors = (colors: Palette): Record<SocialPlatform, string> => ({
   facebook: "#1877F2", telegram: "#229ED9", x: colors.text, tiktok: colors.text,
   instagram: "#C13584", line: "#06C755", whatsapp: "#25D366", wechat: "#07C160",
@@ -36,6 +32,12 @@ export function EditProfileScreen({ navigation }: Props) {
   const [profile, setProfile] = useState<CurrentUser>(emptyProfile(userId));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<SocialPlatform[]>([]);
+  const [choosingPlatform, setChoosingPlatform] = useState(false);
+  const addedPlatforms = platforms.filter((platform) =>
+    selectedPlatforms.includes(platform) || profile.links.some((link) => link.platform === platform && link.handle.trim())
+  );
+  const availablePlatforms = platforms.filter((platform) => !addedPlatforms.includes(platform));
 
   useEffect(() => {
     let active = true;
@@ -115,8 +117,8 @@ export function EditProfileScreen({ navigation }: Props) {
           <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={profile.bio} onChangeText={(bio) => updateProfile({ bio })} placeholder="A little about you (optional)" placeholderTextColor={colors.muted} maxLength={120} multiline textAlignVertical="top" style={[styles.input, styles.bioInput]} />
         </View>
 
-        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Contact info</Text><Text style={styles.optional}>Optional</Text></View>
-        <Text style={styles.sectionDescription}>Add only the accounts you want to share. Turn visibility on for each account you want shown.</Text>
+        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Social accounts</Text><Text style={styles.optional}>Optional</Text></View>
+        <Text style={styles.sectionDescription}>Choose an app, then add your username or profile link. Visible accounts can be opened by other users.</Text>
 
         <View style={styles.previewCard}>
           <Text style={styles.previewHeading}>Profile preview</Text>
@@ -124,20 +126,36 @@ export function EditProfileScreen({ navigation }: Props) {
             {profile.photoUri ? <Image source={{ uri: profile.photoUri }} style={styles.previewPhoto} /> : <View style={styles.previewPhotoPlaceholder}><Ionicons name="person" size={17} color={colors.muted} /></View>}
             <View style={{ flex: 1 }}><Text style={styles.previewName}>{profile.name.trim() || "Your display name"}</Text><Text style={styles.previewBio} numberOfLines={2}>{profile.bio.trim() || "Your bio will appear here"}</Text></View>
           </View>
-          <Text style={styles.previewContactTitle}>Contact info</Text>
-          {visibleLinks.length ? visibleLinks.map((link) => <View style={styles.previewLink} key={link.platform}><View style={[styles.miniPlatformIcon, { backgroundColor: `${platformColors[link.platform]}14` }]}><Ionicons name={platformIcons[link.platform]} size={14} color={platformColors[link.platform]} /></View><Text style={styles.previewPlatform}>{platformLabels[link.platform]}</Text><Text style={styles.previewHandle} numberOfLines={1}>{link.handle.trim()}</Text></View>) : <Text style={styles.previewEmpty}>Visible accounts you add will appear here.</Text>}
+          <Text style={styles.previewContactTitle}>Social accounts</Text>
+          {visibleLinks.length ? visibleLinks.map((link) => <View style={styles.previewLink} key={link.platform}><View style={[styles.miniPlatformIcon, { backgroundColor: `${platformColors[link.platform]}14` }]}><SocialLogo platform={link.platform} size={14} /></View><Text style={styles.previewPlatform}>{platformLabels[link.platform]}</Text><Text style={styles.previewHandle} numberOfLines={1}>{link.handle.trim()}</Text></View>) : <Text style={styles.previewEmpty}>Visible accounts you add will appear here.</Text>}
         </View>
 
         <Text style={styles.linksHeading}>Social accounts</Text>
+        <Button label={choosingPlatform ? "Close app picker" : "Add social account"} disabled={loading || saving || availablePlatforms.length === 0} onPress={() => setChoosingPlatform((current) => !current)} />
+        {choosingPlatform ? <View style={styles.previewCard}>
+          <Text style={styles.sectionTitle}>Which app would you like to add?</Text>
+          {availablePlatforms.map((platform) => <Pressable key={platform} accessibilityRole="button" accessibilityLabel={`Add ${platformLabels[platform]}`} style={styles.socialRow} onPress={() => {
+            setSelectedPlatforms((current) => [...current, platform]);
+            updateLink(platform, { hidden: false });
+            setChoosingPlatform(false);
+          }}>
+            <SocialLogo platform={platform} />
+            <Text style={styles.platformName}>{platformLabels[platform]}</Text>
+          </Pressable>)}
+        </View> : null}
         <View style={styles.linksCard}>
-          {platforms.map((platform, index) => {
+          {addedPlatforms.map((platform, index) => {
             const link = profile.links.find((item) => item.platform === platform)!;
             const canShow = Boolean(link.handle.trim());
             return <View key={platform} style={[styles.socialRow, index > 0 && styles.rowBorder]}>
-              <View style={[styles.platformIcon, { backgroundColor: `${platformColors[platform]}14` }]}><Ionicons name={platformIcons[platform]} size={18} color={platformColors[platform]} /></View>
+              <View style={[styles.platformIcon, { backgroundColor: `${platformColors[platform]}14` }]}><SocialLogo platform={platform} size={18} /></View>
               <View style={styles.socialContent}>
                 <View style={styles.socialHeader}><Text style={styles.platformName}>{platformLabels[platform]}</Text><View style={styles.visibilityControl}><Text style={styles.visibilityLabel}>{!link.hidden && canShow ? "Visible" : "Hidden"}</Text><Switch value={!link.hidden && canShow} onValueChange={(visible) => updateLink(platform, { hidden: !visible })} disabled={!canShow} trackColor={{ false: colors.border, true: colors.accent }} thumbColor={!link.hidden && canShow ? colors.success : colors.surface} accessibilityLabel={`${platformLabels[platform]} visibility`} /></View></View>
-                <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={link.handle} onChangeText={(handle) => updateLink(platform, { handle, hidden: handle.trim() ? link.hidden : true })} placeholder="Username or profile link" placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.socialInput} returnKeyType="done" />
+                <TextInput keyboardAppearance={isDark ? "dark" : "light"} value={link.handle} onChangeText={(handle) => updateLink(platform, { handle, hidden: handle.trim() ? link.hidden : true })} accessibilityLabel={`${platformLabels[platform]} username or profile link`} maxLength={256} placeholder={platform === "facebook" ? "facebook.com/yourname or profile URL" : "Username or profile link"} placeholderTextColor={colors.muted} autoCapitalize="none" autoCorrect={false} keyboardType="url" style={styles.socialInput} returnKeyType="done" />
+                <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${platformLabels[platform]} account`} onPress={() => {
+                  updateLink(platform, { handle: "", hidden: true });
+                  setSelectedPlatforms((current) => current.filter((item) => item !== platform));
+                }} style={{ minHeight: 44, justifyContent: "center" }}><Text style={styles.removeText}>Remove account</Text></Pressable>
               </View>
             </View>;
           })}
@@ -168,7 +186,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   actionSeparator: { width: 1, height: 14, backgroundColor: colors.border },
   formCard: { padding: 14, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, marginBottom: 18 },
   fieldLabel: { color: colors.text, fontSize: 12.5, fontWeight: "800", marginBottom: 7 },
-  input: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm + 1, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontSize: 14, backgroundColor: "#FFFFFF", marginBottom: 14 },
+  input: { minHeight: 44, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm + 1, paddingHorizontal: 12, paddingVertical: 10, color: colors.text, fontSize: 14, backgroundColor: colors.surface, marginBottom: 14 },
   fieldHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   counter: { color: colors.muted, fontSize: 10.5, marginBottom: 7 },
   bioInput: { height: 86, marginBottom: 0 },
@@ -199,7 +217,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   platformName: { color: colors.text, fontSize: 12, fontWeight: "800" },
   visibilityControl: { flexDirection: "row", alignItems: "center", gap: 4 },
   visibilityLabel: { color: colors.muted, fontSize: 10 },
-  socialInput: { minHeight: 39, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, marginTop: 5, color: colors.text, backgroundColor: "#FFFFFF", fontSize: 12 },
+  socialInput: { minHeight: 39, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, marginTop: 5, color: colors.text, backgroundColor: colors.surface, fontSize: 12 },
   privacyNote: { color: colors.muted, fontSize: 10.5, lineHeight: 15, marginTop: 9, marginBottom: 12, textAlign: "center" },
   footer: { flexDirection: "row", gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.borderSoft, backgroundColor: colors.background },
   cancelButton: { flex: 1 },
