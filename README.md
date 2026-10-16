@@ -90,8 +90,14 @@ Never put `SUPABASE_SERVICE_ROLE_KEY` or another secret in an `EXPO_PUBLIC_` var
 
 ```bash
 npm install
-npx expo start
+npx expo start --clear
 ```
+
+Run `npm run auth:check` (Node 22.18+ or Node 24+) to validate `.env` and check whether the Auth server is reachable and the email/Google providers are enabled. The checker never prints keys and does not create an account. It does not verify database migrations or complete a login.
+
+The tracked `.env.example` contains placeholders only. Expo does not automatically load `.env.example` or `env.example`. Set the same public variables in your build environment for installed builds, then create and install a new build; editing a local file does not change an already installed app.
+
+If sign-in reports that the account service is not set up correctly, confirm that the CatchYa migrations were applied to the same project referenced by `.env`. A database/network error no longer signs you out as if your account were deactivated.
 
 Use a custom development build for native OAuth deep-link testing. The normal app screens render a clear “backend not configured” message if these variables are absent.
 
@@ -120,6 +126,7 @@ Run app checks:
 ```bash
 npm run typecheck
 npm run lint
+npm run test:auth
 ```
 
 Run database integration tests against a running local Supabase instance:

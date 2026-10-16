@@ -2,6 +2,7 @@ import React, { createContext, useContext, useMemo, useState } from "react";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import { requireSupabase, supabase } from "@/services/supabase";
+import { toAuthMessage, checkAccountActive } from "@/services/authErrors";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -43,15 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     const resolveSession = async () => {
       try {
-        const { data: { session } } = await client.auth.getSession();
+        const { data: { session }, error: sessionError } = await client.auth.getSession();
+        if (sessionError) throw sessionError;
         if (!active) return;
         if (!session?.user) {
           setStatus("signedOut");
           setUserId(null);
           return;
         }
-        const { data: accountActive, error: statusError } = await client.rpc("my_account_is_active");
-        if (statusError || accountActive !== true) {
+        const accountActive = checkAccountActive(await client.rpc("my_account_is_active"));
+        if (!accountActive) {
           await client.auth.signOut();
           if (active) {
             setStatus("signedOut");
@@ -66,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setStatus(nextStatus);
         }
       } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : "Could not restore your session.");
+        if (active) setError(toAuthMessage(cause, "Could not restore your session. Please try signing in again."));
       } finally {
         if (active) setReady(true);
       }
@@ -222,11 +224,6 @@ async function getProfileStatus(id: string): Promise<AuthStatus> {
   if (error) throw error;
   if (data?.account_status === "deactivated") throw new Error("This account is deactivated. Sign in again to reactivate it.");
   return data?.display_name?.trim() ? "signedIn" : "onboarding";
-}
-
-function toAuthMessage(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
-  return fallback;
 }
 
 export function useAuth() {

@@ -5,6 +5,7 @@ export default tseslint.config(
   { ignores: ["node_modules/**", "dist/**", "web-build/**"] },
   { ...js.configs.recommended, languageOptions: { globals: { module: "readonly", require: "readonly", process: "readonly" } } },
   ...tseslint.configs.recommended,
+  { files: ["scripts/**/*.mjs"], languageOptions: { globals: { console: "readonly", fetch: "readonly", AbortSignal: "readonly" } } },
   {
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
