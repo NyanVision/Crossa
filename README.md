@@ -41,7 +41,7 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-`YOUR_PROJECT_REF` is the project reference in the Dashboard URL. `db push` applies both timestamped migrations in order: the initial `20261014000000_catchya_backend.sql` schema and `20261014100000_add_30_minute_discovery_duration.sql` forward migration. The forward migration also upgrades a database that already has the initial CatchYa schema. No demo accounts or sample profiles are inserted; new profiles/preferences are provisioned by the Auth-user trigger.
+`YOUR_PROJECT_REF` is the project reference in the Dashboard URL. The migration directory matches the live CatchYa history: the two October 8 profile/avatar migrations, `20261016204437_catchya_backend.sql`, and `20261016204539_add_30_minute_discovery_duration.sql`. Fresh databases replay all four in order; the configured CatchYa project already has them. No demo accounts or sample profiles are inserted; new profiles/preferences are provisioned by the Auth-user trigger.
 
 To run the database locally instead of modifying the linked project:
 
@@ -117,7 +117,7 @@ For local Supabase, run it with:
 npx supabase functions serve delete-account --env-file supabase/.env.local
 ```
 
-The local function environment file is for server-only values and must not be committed. The remote deployment command above is documentation only; this repository has not been deployed.
+The local function environment file is for server-only values and must not be committed. The account-deletion Edge Function command above remains documentation only; it was not deployed as part of the authentication repair.
 
 ## 6. Tests and manual checks
 
@@ -151,7 +151,7 @@ Manual app checks after configuring a test project:
 
 ## Notes / production readiness
 
-This work does not deploy anything. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.
+The database migrations are deployed to the configured CatchYa project. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.
 
 ## Existing CatchYa project repair (October 16, 2026)
 
@@ -165,11 +165,11 @@ retains legacy columns and existing accounts, and backfills missing profile/pref
 It also creates the rest of the app's required backend, RLS policies, Storage rules, Realtime
 publication and expiry cleanup job. The subsequent duration migration remains required.
 
-**Deployment has not occurred.** Automatic approval review blocked this broad database change.
-Review both SQL files before approving the backend upgrade. Remote migration history currently
-contains `20261008172810_catchya_profiles` and `20261008173215_restrict_avatar_paths`; reconcile
-remote/local migration history as part of deployment rather than blindly running `db push`.
-No database reset or account deletion is required.
+**Deployed with user approval on October 16, 2026 (UTC).** All four migration files now match the remote history. The existing Auth account remains and has its profile and preferences. All 10 app tables have RLS enabled.
+
+A transaction that was rolled back verified signup profile creation, active-account lookup, reactivation, deactivation, default-off discovery, 30-minute discovery, cross-user profile isolation and denied direct coordinate access. No test accounts remain. This is database verification, not an end-to-end password/OAuth login test.
+
+The advisor flags authenticated SECURITY DEFINER RPCs; these are intentional caller-scoped APIs with anonymous execution revoked. See [Supabase's advisory](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable). Leaked-password protection is disabled in the existing Auth settings; see [password protection configuration](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
 
 The public client `.env` is configured in the working checkout, but the Auth HTTP probe timed out
 from this execution environment. Provider enablement, email/password login, Google OAuth and
