@@ -73,7 +73,7 @@ No Facebook/Telegram/X/etc. social-profile link becomes a sign-in provider unles
 
 ## 4. Configure local environment and run
 
-Copy the placeholder file and fill it locally:
+Copy the environment template locally:
 
 ```bash
 cp .env.example .env
@@ -95,7 +95,7 @@ npx expo start --clear
 
 Run `npm run auth:check` (Node 22.18+ or Node 24+) to validate `.env` and check whether the Auth server is reachable and the email/Google providers are enabled. The checker never prints keys and does not create an account. It does not verify database migrations or complete a login.
 
-The tracked `.env.example` contains placeholders only. Expo does not automatically load `.env.example` or `env.example`. Set the same public variables in your build environment for installed builds, then create and install a new build; editing a local file does not change an already installed app.
+The tracked `.env.example` contains the intended CatchYa project URL and its public publishable key; no server secrets. Use different values if testing another project. Expo does not automatically load `.env.example` or `env.example`. Set the same public variables in your build environment for installed builds, then create and install a new build; editing a local file does not change an already installed app.
 
 If sign-in reports that the account service is not set up correctly, confirm that the CatchYa migrations were applied to the same project referenced by `.env`. A database/network error no longer signs you out as if your account were deactivated.
 
@@ -152,3 +152,25 @@ Manual app checks after configuring a test project:
 ## Notes / production readiness
 
 This work does not deploy anything. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.
+
+## Existing CatchYa project repair (October 16, 2026)
+
+The Supabase connection labeled **For Catchya** points to project `hzqzpvaisxnyixqtzets`.
+Inspection found only the older `profiles` table, zero profile rows, one existing Auth account,
+and no CatchYa account RPCs or profile-creation trigger. This is incompatible with the app:
+`finishLogin` calls `reactivate_my_account`, and profile loading expects `account_status`.
+
+The initial backend migration now accepts that legacy profile table, adds the missing columns,
+retains legacy columns and existing accounts, and backfills missing profile/preferences rows.
+It also creates the rest of the app's required backend, RLS policies, Storage rules, Realtime
+publication and expiry cleanup job. The subsequent duration migration remains required.
+
+**Deployment has not occurred.** Automatic approval review blocked this broad database change.
+Review both SQL files before approving the backend upgrade. Remote migration history currently
+contains `20261008172810_catchya_profiles` and `20261008173215_restrict_avatar_paths`; reconcile
+remote/local migration history as part of deployment rather than blindly running `db push`.
+No database reset or account deletion is required.
+
+The public client `.env` is configured in the working checkout, but the Auth HTTP probe timed out
+from this execution environment. Provider enablement, email/password login, Google OAuth and
+mobile redirects remain unverified. Copy `.env.example` to `.env` and restart/rebuild when testing.
