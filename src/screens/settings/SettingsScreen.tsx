@@ -87,7 +87,7 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       const permission = await requestLocationPermission();
       if (permission !== "granted") {
-        Alert.alert("Location permission needed", "Nearby discovery uses foreground location to find opted-in people and show an approximate distance range. CatchYa never displays your exact location.", [
+        Alert.alert("Location permission needed", "Nearby discovery uses foreground location to find opted-in people and show an approximate distance range. Crossa never displays your exact location.", [
           { text: "Not now", style: "cancel" },
           { text: "Open Settings", onPress: () => { void Linking.openSettings(); } },
         ]);
@@ -128,7 +128,7 @@ export function SettingsScreen({ navigation }: Props) {
       await AsyncStorage.setItem(key, token ? "true" : "false");
       if (userId) await saveUserSettings(userId, { notificationsEnabled: !!token });
       if (!token) {
-        Alert.alert("Notifications unavailable", "Enable notifications for CatchYa in your device settings. Push notification delivery also needs a configured app service.", [
+        Alert.alert("Notifications unavailable", "Enable notifications for Crossa in your device settings. Push notification delivery also needs a configured app service.", [
           { text: "Open Settings", onPress: () => { void Linking.openSettings(); } },
           { text: "Cancel", style: "cancel" },
         ]);
@@ -147,7 +147,7 @@ export function SettingsScreen({ navigation }: Props) {
     }
   };
 
-  const confirmSignOut = () => Alert.alert("Sign out of CatchYa?", "You can sign back in at any time.", [
+  const confirmSignOut = () => Alert.alert("Sign out of Crossa?", "You can sign back in at any time.", [
     { text: "Cancel", style: "cancel" },
     { text: "Sign out", style: "destructive", onPress: () => { void signOut(); } },
   ]);
@@ -160,7 +160,7 @@ export function SettingsScreen({ navigation }: Props) {
     } },
   ]);
 
-  const confirmDelete = () => Alert.alert("Permanently delete your account?", "This permanently deletes your CatchYa profile, messages, requests, social links, safety data, and profile photos. This cannot be undone.", [
+  const confirmDelete = () => Alert.alert("Permanently delete your account?", "This permanently deletes your Crossa profile, messages, requests, social links, safety data, and profile photos. This cannot be undone.", [
     { text: "Cancel", style: "cancel" },
     { text: "Delete account", style: "destructive", onPress: async () => {
       try { await deleteAccount(); }
@@ -218,7 +218,7 @@ export function SettingsScreen({ navigation }: Props) {
         {visibleLinks.length ? visibleLinks.map((link) => <View key={link.platform} style={styles.visibleLinkRow}><Ionicons name="link-outline" size={15} color={colors.muted} /><Text style={styles.linkPlatform}>{platformLabels[link.platform]}</Text><Text style={styles.linkHandle} numberOfLines={1}>{link.handle}</Text><Ionicons name="eye-outline" size={14} color={colors.success} /></View>) : <Text style={styles.noLinks}>No social links are visible. Add a link and turn on its visibility in Edit Profile.</Text>}
         <View style={styles.inlineDivider} />
         <Text style={styles.rowTitle}>Blocked users</Text>
-        <Text style={styles.rowDescription}>Keep people you block out of your CatchYa interactions.</Text>
+        <Text style={styles.rowDescription}>Keep people you block out of your Crossa interactions.</Text>
         {loading ? <ActivityIndicator color={colors.accent} style={styles.blockLoading} /> : blockedProfiles.length ? blockedProfiles.map((person) => <View key={person.profileId} style={styles.blockedRow}><View style={styles.blockedIcon}><Ionicons name="person" size={14} color={colors.muted} /></View><Text style={styles.blockedName} numberOfLines={1}>{person.displayName}</Text><Pressable onPress={() => void unblock(person)} style={styles.unblockButton} accessibilityRole="button" accessibilityLabel={`Unblock ${person.displayName}`}><Text style={styles.unblockText}>Unblock</Text></Pressable></View>) : <View style={styles.blockedEmpty}><Ionicons name="checkmark-circle-outline" size={16} color={colors.success} /><Text style={styles.noLinks}>No blocked users.</Text></View>}
       </View>
 
@@ -244,7 +244,7 @@ export function SettingsScreen({ navigation }: Props) {
       <View style={styles.card}>
         <SettingsRow icon="help-circle-outline" title="Privacy and discovery help" description="Learn how visibility, location, and links work" onPress={() => Alert.alert("Privacy and discovery", "Nearby discovery is optional and starts off. When enabled, only opted-in people can find you, your visibility ends at the duration you select, and your exact location is never displayed. Gender stays private unless you turn on Show this on my profile. Your Discover choices are private and only shape your results. Social links appear only when you add them and mark them visible.", [{ text: "Got it" }])} />
         <View style={styles.rowDivider} />
-        <SettingsRow icon="information-circle-outline" title="About CatchYa" description="Accounts, profiles, discovery, and messages sync securely" onPress={() => Alert.alert("About CatchYa", "CatchYa uses Supabase for secure account, profile, discovery, and messaging services. Nearby discovery is optional and your exact location is never shown to other users.", [{ text: "Done" }])} />
+        <SettingsRow icon="information-circle-outline" title="About Crossa" description="Accounts, profiles, discovery, and messages sync securely" onPress={() => Alert.alert("About Crossa", "Crossa uses Supabase for secure account, profile, discovery, and messaging services. Nearby discovery is optional and your exact location is never shown to other users.", [{ text: "Done" }])} />
       </View>
       <Modal transparent visible={showDiscoveryDurationPicker} animationType="fade" onRequestClose={() => { if (!discoveryBusy) setShowDiscoveryDurationPicker(false); }}>
         <View style={styles.modalBackdrop}>
