@@ -1,14 +1,12 @@
+import { getSupabaseConfigurationError } from "./supabaseConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
 const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ?? "";
 
-export const isSupabaseConfigured = Boolean(
-  /^https:\/\//i.test(supabaseUrl)
-  && publishableKey.startsWith("sb_publishable_")
-  && !publishableKey.includes("REPLACE_ME")
-);
+export const supabaseConfigurationError = getSupabaseConfigurationError(supabaseUrl, publishableKey);
+export const isSupabaseConfigured = supabaseConfigurationError === null;
 
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, publishableKey, {
@@ -24,7 +22,7 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
 
 export function requireSupabase(): SupabaseClient {
   if (!supabase) {
-    throw new Error("Supabase is not configured. Copy .env.example to .env and set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.");
+    throw new Error(supabaseConfigurationError ?? "Supabase is not configured.");
   }
   return supabase;
 }

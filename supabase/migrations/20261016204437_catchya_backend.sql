@@ -7,7 +7,7 @@ revoke all on schema private from public, anon, authenticated;
 grant usage on schema private to postgres, service_role;
 grant usage on schema private to authenticated;
 
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default '' check (char_length(display_name) <= 40),
   age smallint check (age is null or age between 13 and 120),
@@ -33,6 +33,32 @@ create table public.profiles (
       and (gender <> 'Self-describe' or length(trim(gender_description)) > 0))
   )
 );
+
+
+-- Upgrade the October 8 profile-only backend without removing legacy columns
+-- or accounts. Its profile table was empty when this repair was applied.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'account_status') then
+    alter table public.profiles
+      add column age smallint check (age is null or age between 13 and 120),
+      add column photo_path text check (photo_path is null or split_part(photo_path, '/', 1) = id::text),
+      add column gender text check (gender is null or gender in ('Woman', 'Man', 'Non-binary', 'Self-describe', 'Prefer not to say')),
+      add column gender_description text not null default '' check (char_length(gender_description) <= 48),
+      add column show_gender boolean not null default false,
+      add column meet_preferences text[] not null default '{}' check (meet_preferences <@ array['Women', 'Men', 'Non-binary people', 'Everyone']::text[]),
+      add column account_status text not null default 'active' check (account_status in ('active', 'deactivated')),
+      add column qr_token uuid not null default gen_random_uuid() unique,
+      add column updated_at timestamptz not null default now(),
+      add constraint gender_description_only_for_self_describe check (gender is not distinct from 'Self-describe' or gender_description = ''),
+      add constraint visible_gender_has_value check (not show_gender or (gender is not null and gender <> 'Prefer not to say' and (gender <> 'Self-describe' or length(trim(gender_description)) > 0)));
+  end if;
+end;
+$$;
+-- Replace only legacy profile policies with the equivalent owner-only policies below.
+drop policy if exists profiles_select_own on public.profiles;
+drop policy if exists profiles_update_own on public.profiles;
+drop policy if exists profiles_insert_own on public.profiles;
 
 create table public.profile_links (
   id uuid primary key default gen_random_uuid(),
@@ -288,6 +314,13 @@ drop trigger if exists on_auth_user_created_catchya on auth.users;
 create trigger on_auth_user_created_catchya
 after insert on auth.users
 for each row execute function public.handle_new_catchya_user();
+
+
+-- Auth accounts created before the profile trigger need the same default rows.
+-- Blank names intentionally route these accounts through onboarding.
+insert into public.profiles (id) select id from auth.users on conflict (id) do nothing;
+insert into public.user_preferences (user_id) select id from public.profiles on conflict (user_id) do nothing;
+insert into public.discovery_preferences (user_id) select id from public.profiles on conflict (user_id) do nothing;
 
 create or replace function public.set_my_discovery(
   p_enabled boolean,

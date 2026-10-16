@@ -41,7 +41,7 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-`YOUR_PROJECT_REF` is the project reference in the Dashboard URL. `db push` applies both timestamped migrations in order: the initial `20261014000000_catchya_backend.sql` schema and `20261014100000_add_30_minute_discovery_duration.sql` forward migration. The forward migration also upgrades a database that already has the initial CatchYa schema. No demo accounts or sample profiles are inserted; new profiles/preferences are provisioned by the Auth-user trigger.
+`YOUR_PROJECT_REF` is the project reference in the Dashboard URL. The migration directory matches the live CatchYa history: the two October 8 profile/avatar migrations, `20261016204437_catchya_backend.sql`, and `20261016204539_add_30_minute_discovery_duration.sql`. Fresh databases replay all four in order; the configured CatchYa project already has them. No demo accounts or sample profiles are inserted; new profiles/preferences are provisioned by the Auth-user trigger.
 
 To run the database locally instead of modifying the linked project:
 
@@ -73,7 +73,7 @@ No Facebook/Telegram/X/etc. social-profile link becomes a sign-in provider unles
 
 ## 4. Configure local environment and run
 
-Copy the placeholder file and fill it locally:
+Copy the environment template locally:
 
 ```bash
 cp .env.example .env
@@ -90,8 +90,14 @@ Never put `SUPABASE_SERVICE_ROLE_KEY` or another secret in an `EXPO_PUBLIC_` var
 
 ```bash
 npm install
-npx expo start
+npx expo start --clear
 ```
+
+Run `npm run auth:check` (Node 22.18+ or Node 24+) to validate `.env` and check whether the Auth server is reachable and the email/Google providers are enabled. The checker never prints keys and does not create an account. It does not verify database migrations or complete a login.
+
+The tracked `.env.example` contains the intended CatchYa project URL and its public publishable key; no server secrets. Use different values if testing another project. Expo does not automatically load `.env.example` or `env.example`. Set the same public variables in your build environment for installed builds, then create and install a new build; editing a local file does not change an already installed app.
+
+If sign-in reports that the account service is not set up correctly, confirm that the CatchYa migrations were applied to the same project referenced by `.env`. A database/network error no longer signs you out as if your account were deactivated.
 
 Use a custom development build for native OAuth deep-link testing. The normal app screens render a clear “backend not configured” message if these variables are absent.
 
@@ -111,7 +117,7 @@ For local Supabase, run it with:
 npx supabase functions serve delete-account --env-file supabase/.env.local
 ```
 
-The local function environment file is for server-only values and must not be committed. The remote deployment command above is documentation only; this repository has not been deployed.
+The local function environment file is for server-only values and must not be committed. The account-deletion Edge Function command above remains documentation only; it was not deployed as part of the authentication repair.
 
 ## 6. Tests and manual checks
 
@@ -120,6 +126,7 @@ Run app checks:
 ```bash
 npm run typecheck
 npm run lint
+npm run test:auth
 ```
 
 Run database integration tests against a running local Supabase instance:
@@ -144,4 +151,26 @@ Manual app checks after configuring a test project:
 
 ## Notes / production readiness
 
-This work does not deploy anything. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.
+The database migrations are deployed to the configured CatchYa project. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.
+
+## Existing CatchYa project repair (October 16, 2026)
+
+The Supabase connection labeled **For Catchya** points to project `hzqzpvaisxnyixqtzets`.
+Inspection found only the older `profiles` table, zero profile rows, one existing Auth account,
+and no CatchYa account RPCs or profile-creation trigger. This is incompatible with the app:
+`finishLogin` calls `reactivate_my_account`, and profile loading expects `account_status`.
+
+The initial backend migration now accepts that legacy profile table, adds the missing columns,
+retains legacy columns and existing accounts, and backfills missing profile/preferences rows.
+It also creates the rest of the app's required backend, RLS policies, Storage rules, Realtime
+publication and expiry cleanup job. The subsequent duration migration remains required.
+
+**Deployed with user approval on October 16, 2026 (UTC).** All four migration files now match the remote history. The existing Auth account remains and has its profile and preferences. All 10 app tables have RLS enabled.
+
+A transaction that was rolled back verified signup profile creation, active-account lookup, reactivation, deactivation, default-off discovery, 30-minute discovery, cross-user profile isolation and denied direct coordinate access. No test accounts remain. This is database verification, not an end-to-end password/OAuth login test.
+
+The advisor flags authenticated SECURITY DEFINER RPCs; these are intentional caller-scoped APIs with anonymous execution revoked. See [Supabase's advisory](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable). Leaked-password protection is disabled in the existing Auth settings; see [password protection configuration](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+
+The public client `.env` is configured in the working checkout, but the Auth HTTP probe timed out
+from this execution environment. Provider enablement, email/password login, Google OAuth and
+mobile redirects remain unverified. Copy `.env.example` to `.env` and restart/rebuild when testing.
