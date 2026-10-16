@@ -57,7 +57,7 @@ export function OnboardingScreen() {
       <TextField label="Age (optional)" value={age} onChangeText={(value) => setAge(value.replace(/\D/g, "").slice(0, 3))} placeholder="13 or older" keyboardType="number-pad" maxLength={3} />
       <TextField label="Short bio" value={bio} onChangeText={setBio} placeholder="One line about you" maxLength={120} />
       <Text style={styles.sectionTitle}>Add social links</Text>
-      <Text style={styles.hint}>You type these in yourself — CatchYa never pulls from your accounts. You can hide any link later. Social links are never used to sign in.</Text>
+      <Text style={styles.hint}>You type these in yourself — Crossa never pulls from your accounts. You can hide any link later. Social links are never used to sign in.</Text>
       <TextField label="Instagram" value={instagram} onChangeText={setInstagram} placeholder="@username" />
       <TextField label="Telegram" value={telegram} onChangeText={setTelegram} placeholder="@username" />
       <Button label="Continue" variant="primary" loading={saving} disabled={saving} onPress={() => void save()} />
