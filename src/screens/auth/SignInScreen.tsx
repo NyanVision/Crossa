@@ -23,7 +23,7 @@ export function SignInScreen({ navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} keyboardShouldPersistTaps="handled">
-      <View style={styles.brand}><Text style={styles.h1}>Sign in</Text><Text style={styles.sub}>Sign in to your CatchYa account to continue.</Text>
+      <View style={styles.brand}><Text style={styles.h1}>Sign in</Text><Text style={styles.sub}>Sign in to your Crossa account to continue.</Text>
         {!isSupabaseConfigured ? <Text style={styles.testNotice}>Backend not configured yet. Add your Supabase URL and publishable key to the local .env file.</Text> : null}
       </View>
       <Banner message={error} />
@@ -37,7 +37,7 @@ export function SignInScreen({ navigation }: Props) {
         <Button label="Sign in" variant="primary" loading={loading} disabled={!isSupabaseConfigured || loading} onPress={() => { clearError(); void signInWithEmail(email, password); }} />
       </View> : null}
       <View style={styles.linkRow}><Text style={styles.muted}>Don't have an account? </Text><Text style={styles.link} onPress={() => navigation.navigate("CreateAccount")}>Create one</Text></View>
-      <Text style={[styles.hint, { textAlign: "center", marginTop: 22 }]}>By continuing, you agree to CatchYa's <Text style={styles.link} onPress={() => navigation.navigate("PrivacyPolicy")}>Privacy Policy</Text>.</Text>
+      <Text style={[styles.hint, { textAlign: "center", marginTop: 22 }]}>By continuing, you agree to Crossa's <Text style={styles.link} onPress={() => navigation.navigate("PrivacyPolicy")}>Privacy Policy</Text>.</Text>
     </ScrollView>
   );
 }
