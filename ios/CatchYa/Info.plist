@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>CatchYa</string>
+	<string>Crossa</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -56,7 +56,7 @@
 		<string>_expo._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>CatchYa needs camera access so you can take a profile photo.</string>
+	<string>Crossa needs camera access so you can take a profile photo.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Expo Dev Launcher uses the local network to discover and connect to development servers running on your computer.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -64,13 +64,13 @@
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your location</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>CatchYa uses your approximate location to show how far away other opted-in people are.</string>
+	<string>Crossa uses your approximate location to show how far away other opted-in people are.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your microphone</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to detect your current motion activity</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>CatchYa needs photo library access so you can choose a profile photo.</string>
+	<string>Crossa needs photo library access so you can choose a profile photo.</string>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
 	<key>RCTNewArchEnabled</key>

@@ -1,4 +1,4 @@
-// Shared design tokens — mirrors the CatchYa web prototype's palette.
+// Shared design tokens — mirrors the Crossa web prototype's palette.
 // Light and dark palettes share the same token names so every screen can
 // read colors from the active theme instead of hard-coding hex values.
 export interface Palette {

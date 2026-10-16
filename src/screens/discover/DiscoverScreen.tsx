@@ -80,7 +80,7 @@ export function DiscoverScreen({ navigation }: Props) {
       Alert.alert("Turn on nearby discovery first", "You control when discovery is active. Turn it on and choose a duration before searching for opted-in people.", [{ text: "OK" }]);
       return;
     }
-    Alert.alert("Why CatchYa needs location", "CatchYa uses foreground location only while you scan and discovery is active. The server compares locations but returns only approximate distance ranges—never exact coordinates.", [
+    Alert.alert("Why Crossa needs location", "Crossa uses foreground location only while you scan and discovery is active. The server compares locations but returns only approximate distance ranges—never exact coordinates.", [
       { text: "Cancel", style: "cancel" },
       { text: "Continue", onPress: () => { void runNearbyScan(); } },
     ]);

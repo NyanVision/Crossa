@@ -1,6 +1,6 @@
-# CatchYa — Expo / React Native / TypeScript
+# Crossa — Expo / React Native / TypeScript
 
-CatchYa is an existing Expo React Native app with TypeScript and React Navigation. The current screens, navigation, styles, and component layout remain in place; this backend integration replaces local-only service implementations with Supabase Auth, Postgres, Storage, and Realtime.
+Crossa is an existing Expo React Native app with TypeScript and React Navigation. The current screens, navigation, styles, and component layout remain in place; this backend integration replaces local-only service implementations with Supabase Auth, Postgres, Storage, and Realtime.
 
 ## Existing frontend structure
 
@@ -15,7 +15,7 @@ CatchYa is an existing Expo React Native app with TypeScript and React Navigatio
 ## Backend features and privacy
 
 - **Auth:** Supabase email/password and Google OAuth. Social profile links (Facebook, Telegram, X, TikTok, Instagram, LINE, WhatsApp, WeChat) are independent profile data, not login methods.
-- **Direct Auth providers:** Supabase Auth directly documents Google and providers including Apple, Azure, Bitbucket, Discord, Facebook, Figma, GitHub, GitLab, Kakao, Keycloak, LinkedIn, Notion, Slack, Spotify, Twitter/X, Twitch, WorkOS, Zoom, and custom OAuth/OIDC. CatchYa currently exposes only Google plus email/password; another provider is not enabled by merely storing a social profile link.
+- **Direct Auth providers:** Supabase Auth directly documents Google and providers including Apple, Azure, Bitbucket, Discord, Facebook, Figma, GitHub, GitLab, Kakao, Keycloak, LinkedIn, Notion, Slack, Spotify, Twitter/X, Twitch, WorkOS, Zoom, and custom OAuth/OIDC. Crossa currently exposes only Google plus email/password; another provider is not enabled by merely storing a social profile link.
 - **Profiles:** display name, optional photo, age, bio, private gender and meet preferences, and individually controlled public social links. Photos use a private Storage bucket and short-lived signed URLs.
 - **Nearby discovery:** off until the user turns it on; choices are 15 minutes, 30 minutes, or 1 hour. The selected end time is stored server-side, so expiry still applies after the app is closed. Foreground location is requested only for enabling/scanning. Exact coordinates are stored only in the non-API `private.discovery_locations` table while discovery is active, never returned to other users, and deleted on opt-out/expiry. The server applies mutual meet-preference filtering and returns only coarse distance bands. Automatic timer cleanup uses `pg_cron` when available; RPCs also check/expire sessions when used.
 - **QR:** opaque, server-issued UUID tokens; QR profile lookup works independently of nearby location permission.
@@ -41,7 +41,7 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push
 ```
 
-`YOUR_PROJECT_REF` is the project reference in the Dashboard URL. The migration directory matches the live CatchYa history: the two October 8 profile/avatar migrations, `20261016204437_catchya_backend.sql`, and `20261016204539_add_30_minute_discovery_duration.sql`. Fresh databases replay all four in order; the configured CatchYa project already has them. No demo accounts or sample profiles are inserted; new profiles/preferences are provisioned by the Auth-user trigger.
+`YOUR_PROJECT_REF` is the project reference in the Dashboard URL. The migration directory matches the live Crossa history: the two October 8 profile/avatar migrations, `20261016204437_catchya_backend.sql`, and `20261016204539_add_30_minute_discovery_duration.sql`. Fresh databases replay all four in order; the configured Crossa project already has them. No demo accounts or sample profiles are inserted; new profiles/preferences are provisioned by the Auth-user trigger.
 
 To run the database locally instead of modifying the linked project:
 
@@ -66,7 +66,7 @@ In **Authentication → Sign In / Providers → Email**, enable email/password. 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create/configure an OAuth consent screen and a **Web application** OAuth client.
 2. In Supabase → **Authentication → Sign In / Providers → Google**, enable Google, enter the Google client ID and client secret, and copy the Supabase callback URL shown there (typically `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`).
 3. Add that Supabase callback URL to the Google OAuth client’s **Authorized redirect URIs**.
-4. Ensure `catchya://auth/callback` is present in Supabase’s redirect allow-list. CatchYa opens the Supabase OAuth flow and exchanges its PKCE authorization code.
+4. Ensure `catchya://auth/callback` is present in Supabase’s redirect allow-list. Crossa opens the Supabase OAuth flow and exchanges its PKCE authorization code.
 5. For native testing, use a custom-scheme-capable development build (`npx expo run:ios` / `npx expo run:android` or an EAS development build). OAuth deep links are not a substitute for configuring the provider in Supabase.
 
 No Facebook/Telegram/X/etc. social-profile link becomes a sign-in provider unless separately enabled and configured through Supabase Auth.
@@ -95,9 +95,9 @@ npx expo start --clear
 
 Run `npm run auth:check` (Node 22.18+ or Node 24+) to validate `.env` and check whether the Auth server is reachable and the email/Google providers are enabled. The checker never prints keys and does not create an account. It does not verify database migrations or complete a login.
 
-The tracked `.env.example` contains the intended CatchYa project URL and its public publishable key; no server secrets. Use different values if testing another project. Expo does not automatically load `.env.example` or `env.example`. Set the same public variables in your build environment for installed builds, then create and install a new build; editing a local file does not change an already installed app.
+The tracked `.env.example` contains the intended Crossa project URL and its public publishable key; no server secrets. Use different values if testing another project. Expo does not automatically load `.env.example` or `env.example`. Set the same public variables in your build environment for installed builds, then create and install a new build; editing a local file does not change an already installed app.
 
-If sign-in reports that the account service is not set up correctly, confirm that the CatchYa migrations were applied to the same project referenced by `.env`. A database/network error no longer signs you out as if your account were deactivated.
+If sign-in reports that the account service is not set up correctly, confirm that the Crossa migrations were applied to the same project referenced by `.env`. A database/network error no longer signs you out as if your account were deactivated.
 
 Use a custom development build for native OAuth deep-link testing. The normal app screens render a clear “backend not configured” message if these variables are absent.
 
@@ -151,13 +151,13 @@ Manual app checks after configuring a test project:
 
 ## Notes / production readiness
 
-The database migrations are deployed to the configured CatchYa project. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.
+The database migrations are deployed to the configured Crossa project. Before a public production release, configure real email delivery, verify OAuth/mobile builds, review the privacy/age and moderation policies for the intended jurisdictions, set retention/abuse controls, and confirm Realtime/Storage quotas. Supabase’s publishable key is safe in a client only because table access is constrained by RLS and sensitive operations stay in server-side functions.
 
-## Existing CatchYa project repair (October 16, 2026)
+## Existing Crossa project repair (October 16, 2026)
 
-The Supabase connection labeled **For Catchya** points to project `hzqzpvaisxnyixqtzets`.
+The Supabase connection labeled **For Crossa** points to project `hzqzpvaisxnyixqtzets`.
 Inspection found only the older `profiles` table, zero profile rows, one existing Auth account,
-and no CatchYa account RPCs or profile-creation trigger. This is incompatible with the app:
+and no Crossa account RPCs or profile-creation trigger. This is incompatible with the app:
 `finishLogin` calls `reactivate_my_account`, and profile loading expects `account_status`.
 
 The initial backend migration now accepts that legacy profile table, adds the missing columns,
@@ -174,3 +174,11 @@ The advisor flags authenticated SECURITY DEFINER RPCs; these are intentional cal
 The public client `.env` is configured in the working checkout, but the Auth HTTP probe timed out
 from this execution environment. Provider enablement, email/password login, Google OAuth and
 mobile redirects remain unverified. Copy `.env.example` to `.env` and restart/rebuild when testing.
+
+## Crossa branding
+
+The app display name, screens, permission prompts, and package description use Crossa.
+Existing native application IDs, Expo project slug/ID, OAuth callback scheme,
+storage keys, and database migration filenames retain their original identifiers
+to preserve installed-app updates, sign-in redirects, and saved preferences.
+GitHub repository naming is independent of those identifiers.

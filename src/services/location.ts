@@ -2,7 +2,7 @@ import * as Location from "expo-location";
 
 export type LocationPermissionResult = "granted" | "denied" | "unavailable";
 
-// Requests foreground location permission only. CatchYa never requests
+// Requests foreground location permission only. Crossa never requests
 // "Always" / background location, and the raw coordinates returned here
 // are used only to compute a rounded, approximate distance client-side —
 // they are never sent to other users or shown on a map.

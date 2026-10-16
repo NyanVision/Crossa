@@ -17,7 +17,7 @@ export function WelcomeScreen({ navigation }: Props) {
         <View style={styles.mark}>
           <Text style={styles.markText}>C</Text>
         </View>
-        <Text style={styles.name}>CatchYa</Text>
+        <Text style={styles.name}>Crossa</Text>
         <Text style={styles.tagline}>Meet people around you, on your terms.</Text>
       </View>
 

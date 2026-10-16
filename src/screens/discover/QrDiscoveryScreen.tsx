@@ -47,7 +47,7 @@ export function QrDiscoveryScreen({ navigation, route }: Props) {
     setScanned(true);
     const profileCode = getProfileCodeFromQr(data);
     if (!profileCode) {
-      Alert.alert("This QR code isn’t from CatchYa", "Try scanning a CatchYa profile code.", [
+      Alert.alert("This QR code isn’t from Crossa", "Try scanning a Crossa profile code.", [
         { text: "Scan again", onPress: () => setScanned(false) },
         { text: "Done", onPress: () => setMode("choose") },
       ]);
@@ -75,15 +75,15 @@ export function QrDiscoveryScreen({ navigation, route }: Props) {
   if (mode === "scan") {
     return <View style={styles.screen}>
       <View style={styles.topBar}><Pressable onPress={() => setMode("choose")} style={styles.backBtn} accessibilityLabel="Back"><Ionicons name="arrow-back" size={20} color={colors.text} /></Pressable><Text style={styles.topTitle}>Scan a QR code</Text><View style={{ width: 38 }} /></View>
-      {!isFocused ? <View style={styles.cameraWrap} /> : !permission?.granted ? <View style={styles.permissionWrap}><View style={styles.iconBubble}><Ionicons name="camera-outline" size={26} color={colors.accent} /></View><Text style={styles.heading}>Allow camera access to scan</Text><Text style={styles.body}>Camera access is used only when you choose to scan. Your location stays off.</Text><Button label="Allow camera access" variant="primary" onPress={beginScan} /><Button label="Cancel" onPress={() => setMode("choose")} style={{ marginTop: 10 }} /></View> : <View style={styles.cameraWrap}><CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={scanned || resolving ? undefined : onBarcodeScanned} /><View pointerEvents="none" style={styles.scanOverlay}><View style={styles.scanFrame} /><Text style={styles.scanHint}>{resolving ? "Loading CatchYa profile…" : "Place a CatchYa QR code inside the frame"}</Text></View></View>}
+      {!isFocused ? <View style={styles.cameraWrap} /> : !permission?.granted ? <View style={styles.permissionWrap}><View style={styles.iconBubble}><Ionicons name="camera-outline" size={26} color={colors.accent} /></View><Text style={styles.heading}>Allow camera access to scan</Text><Text style={styles.body}>Camera access is used only when you choose to scan. Your location stays off.</Text><Button label="Allow camera access" variant="primary" onPress={beginScan} /><Button label="Cancel" onPress={() => setMode("choose")} style={{ marginTop: 10 }} /></View> : <View style={styles.cameraWrap}><CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ["qr"] }} onBarcodeScanned={scanned || resolving ? undefined : onBarcodeScanned} /><View pointerEvents="none" style={styles.scanOverlay}><View style={styles.scanFrame} /><Text style={styles.scanHint}>{resolving ? "Loading Crossa profile…" : "Place a Crossa QR code inside the frame"}</Text></View></View>}
     </View>;
   }
 
   if (mode === "show") {
     return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.topBar}><Pressable onPress={() => setMode("choose")} style={styles.backBtn} accessibilityLabel="Back"><Ionicons name="arrow-back" size={20} color={colors.text} /></Pressable><Text style={styles.topTitle}>Your CatchYa QR</Text><View style={{ width: 38 }} /></View>
+      <View style={styles.topBar}><Pressable onPress={() => setMode("choose")} style={styles.backBtn} accessibilityLabel="Back"><Ionicons name="arrow-back" size={20} color={colors.text} /></Pressable><Text style={styles.topTitle}>Your Crossa QR</Text><View style={{ width: 38 }} /></View>
       <View style={styles.qrPage}>
-        <Text style={styles.heading}>Let someone scan your code</Text><Text style={styles.body}>They can find your CatchYa profile in person. Your code contains no location or contact details.</Text>
+        <Text style={styles.heading}>Let someone scan your code</Text><Text style={styles.body}>They can find your Crossa profile in person. Your code contains no location or contact details.</Text>
         <View style={styles.qrPaper}>{payload ? <QRCode value={payload} size={220} color="#20262D" backgroundColor="#FFFFFF" /> : <Ionicons name="qr-code-outline" size={120} color={colors.border} />}</View>
         <View style={styles.safeNote}><Ionicons name="lock-closed-outline" size={17} color={colors.success} /><Text style={styles.safeCopy}>Location access is not used for QR discovery.</Text></View>
       </View>
@@ -94,7 +94,7 @@ export function QrDiscoveryScreen({ navigation, route }: Props) {
     <View style={styles.topBar}><Pressable onPress={() => navigation.goBack()} style={styles.backBtn} accessibilityLabel="Back"><Ionicons name="arrow-back" size={20} color={colors.text} /></Pressable><Text style={styles.topTitle}>QR discovery</Text><View style={{ width: 38 }} /></View>
     <View style={styles.heroIcon}><Ionicons name="qr-code-outline" size={31} color={colors.accent} /></View>
     <Text style={styles.heading}>Connect face to face</Text>
-    <Text style={styles.body}>Show your CatchYa QR code or scan someone else’s. QR discovery works without location access.</Text>
+    <Text style={styles.body}>Show your Crossa QR code or scan someone else’s. QR discovery works without location access.</Text>
     <View style={styles.actions}><Button label="Show my QR code" variant="primary" onPress={() => setMode("show")} /><Button label="Scan a QR code" icon={<Ionicons name="scan-outline" size={18} color={colors.text} />} onPress={beginScan} style={{ marginTop: 10 }} /></View>
     <View style={styles.safeNote}><Ionicons name="location-outline" size={17} color={colors.success} /><Text style={styles.safeCopy}>Nearby discovery stays off unless you turn it on separately.</Text></View>
   </ScrollView>;

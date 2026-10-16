@@ -1,9 +1,11 @@
+import { SocialLogo } from "@/components/SocialLogo";
 import React, { useCallback, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/Button";
+import { socialProfileUrl } from "@/services/socialLinks";
 import { loadProfile } from "@/services/profileStorage";
 import { loadAboutYouPreferences, visibleGenderLabel } from "@/services/aboutYouPreferences";
 import type { CurrentUser, SocialPlatform } from "@/types";
@@ -16,11 +18,6 @@ type Props = NativeStackScreenProps<AppStackParamList, "Profile">;
 const platformLabels: Record<SocialPlatform, string> = {
   facebook: "Facebook", telegram: "Telegram", x: "X", tiktok: "TikTok",
   instagram: "Instagram", line: "LINE", whatsapp: "WhatsApp", wechat: "WeChat",
-};
-const platformIcons: Record<SocialPlatform, keyof typeof Ionicons.glyphMap> = {
-  facebook: "logo-facebook", telegram: "paper-plane-outline", x: "logo-twitter",
-  tiktok: "musical-notes-outline", instagram: "logo-instagram",
-  line: "chatbubble-ellipses-outline", whatsapp: "chatbubble-outline", wechat: "chatbubbles-outline",
 };
 
 export function ProfileScreen({ navigation }: Props) {
@@ -45,6 +42,13 @@ export function ProfileScreen({ navigation }: Props) {
     [profile?.links]
   );
 
+  const openAccount = async (platform: SocialPlatform, handle: string) => {
+    const url = socialProfileUrl(platform, handle);
+    if (!url) { Alert.alert("Invalid account link", "Edit this account and add a valid profile link."); return; }
+    try { await Linking.openURL(url); }
+    catch { Alert.alert("Couldn’t open this account", "Please try again."); }
+  };
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.topbar}><Text style={styles.h1}>Your profile</Text><Pressable onPress={() => navigation.navigate("Settings")} style={styles.settingsButton} accessibilityRole="button" accessibilityLabel="Settings"><Ionicons name="settings-outline" size={19} color={colors.text} /></Pressable></View>
@@ -57,11 +61,11 @@ export function ProfileScreen({ navigation }: Props) {
 
       <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Contact info</Text><Text style={styles.sharedLabel}>Visible to others</Text></View>
       <View style={styles.contactCard}>
-        {visibleLinks.length ? visibleLinks.map((link, index) => <View key={link.platform} style={[styles.contactRow, index > 0 && styles.rowDivider]}>
-          <View style={styles.platformIcon}><Ionicons name={platformIcons[link.platform]} size={17} color={colors.text} /></View>
+        {visibleLinks.length ? visibleLinks.map((link, index) => <Pressable key={link.platform} style={[styles.contactRow, index > 0 && styles.rowDivider]} accessibilityRole="link" accessibilityLabel={`Open your ${platformLabels[link.platform]} profile`} onPress={() => openAccount(link.platform, link.handle)}>
+          <View style={styles.platformIcon}><SocialLogo platform={link.platform} size={17} /></View>
           <View style={{ flex: 1 }}><Text style={styles.platformName}>{platformLabels[link.platform]}</Text><Text style={styles.handle} numberOfLines={1}>{link.handle}</Text></View>
-          <Ionicons name="eye-outline" size={16} color={colors.success} />
-        </View>) : <View style={styles.emptyContact}><Ionicons name="eye-off-outline" size={18} color={colors.muted} /><Text style={styles.emptyText}>No visible contact links yet</Text></View>}
+          <Ionicons name="open-outline" size={16} color={colors.success} />
+        </Pressable>) : <View style={styles.emptyContact}><Ionicons name="eye-off-outline" size={18} color={colors.muted} /><Text style={styles.emptyText}>No visible contact links yet</Text></View>}
       </View>
 
       <Text style={styles.sectionTitle}>Account</Text>

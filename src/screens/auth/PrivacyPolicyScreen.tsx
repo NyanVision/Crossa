@@ -8,8 +8,8 @@ export function PrivacyPolicyScreen() {
   return (
     <ScrollView contentContainerStyle={styles.wrap}>
       <Text style={styles.body}>
-        This is placeholder policy text for the CatchYa prototype. In a shipped app, this screen
-        would explain what data CatchYa collects, how nearby discovery and location data are
+        This is placeholder policy text for the Crossa prototype. In a shipped app, this screen
+        would explain what data Crossa collects, how nearby discovery and location data are
         handled, how message and profile data are stored, and how users can request deletion of
         their account and data.
       </Text>

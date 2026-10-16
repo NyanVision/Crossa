@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "CatchYa",
+    "name": "Crossa",
     "slug": "catchya",
     "scheme": "catchya",
     "version": "1.0.0",
@@ -13,9 +13,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.catchya.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "CatchYa uses your approximate location to show how far away other opted-in people are. Your exact location is never shown to other users.",
-        "NSCameraUsageDescription": "CatchYa uses the camera to take profile photos or scan a QR code when you choose.",
-        "NSPhotoLibraryUsageDescription": "CatchYa needs photo library access so you can choose a profile photo."
+        "NSLocationWhenInUseUsageDescription": "Crossa uses your approximate location to show how far away other opted-in people are. Your exact location is never shown to other users.",
+        "NSCameraUsageDescription": "Crossa uses the camera to take profile photos or scan a QR code when you choose.",
+        "NSPhotoLibraryUsageDescription": "Crossa needs photo library access so you can choose a profile photo."
       }
     },
     "android": {
@@ -36,14 +36,14 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "CatchYa uses your approximate location to show how far away other opted-in people are."
+          "locationWhenInUsePermission": "Crossa uses your approximate location to show how far away other opted-in people are."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "CatchYa needs photo library access so you can choose a profile photo.",
-          "cameraPermission": "CatchYa needs camera access so you can take a profile photo."
+          "photosPermission": "Crossa needs photo library access so you can choose a profile photo.",
+          "cameraPermission": "Crossa needs camera access so you can take a profile photo."
         }
       ],
       [
@@ -55,7 +55,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow CatchYa to use your camera to scan QR codes when you choose."
+          "cameraPermission": "Allow Crossa to use your camera to scan QR codes when you choose."
         }
       ],
       "expo-web-browser",

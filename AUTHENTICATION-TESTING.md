@@ -1,6 +1,6 @@
-# CatchYa authentication and backend testing
+# Crossa authentication and backend testing
 
-CatchYa now uses Supabase Auth rather than the former device-only test-account store. Follow the Supabase setup, email/Google provider instructions, environment configuration, and manual test checklist in [README.md](README.md#backend-features-and-privacy).
+Crossa now uses Supabase Auth rather than the former device-only test-account store. Follow the Supabase setup, email/Google provider instructions, environment configuration, and manual test checklist in [README.md](README.md#backend-features-and-privacy).
 
 Quick start:
 
@@ -10,6 +10,6 @@ Quick start:
 4. Run `npm run typecheck`, `npm run lint`, then follow the manual test checklist in README.
 5. To run pgTAP database permission tests locally, install Docker, then run `npx supabase start`, `npx supabase db reset`, and `npx supabase test db`.
 
-Google OAuth requires a configured Supabase Google provider and a native development build with the CatchYa URL scheme. Social profile links are data only and are not authentication methods.
+Google OAuth requires a configured Supabase Google provider and a native development build with the Crossa URL scheme. Social profile links are data only and are not authentication methods.
 
 The former local test-auth implementation is no longer used by the app. Do not enter service-role keys in Expo variables or client code.

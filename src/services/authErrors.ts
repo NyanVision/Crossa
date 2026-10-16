@@ -3,7 +3,7 @@ export function toAuthMessage(error: unknown, fallback: string): string {
   if (typeof error !== "object" || error === null) return fallback;
   const details = error as { code?: unknown; message?: unknown };
   if (["PGRST202", "PGRST205", "42P01", "42883", "42703"].includes(String(details.code))) {
-    return "CatchYa's account service is not set up correctly. Please contact support.";
+    return "Crossa's account service is not set up correctly. Please contact support.";
   }
   if (typeof details.message === "string" && details.message.trim()) return details.message;
   return fallback;

@@ -19,11 +19,12 @@ export function socialProfileUrl(platform: SocialPlatform, raw: string): string 
       default: break;
     }
   }
-  const urlValue = value;
+  const urlValue = /^(?:(?:www|m)\.)?(?:facebook\.com|instagram\.com|tiktok\.com|x\.com|twitter\.com|t\.me|telegram\.me|wa\.me|line\.me)\//i.test(value) ? `https://${value}` : value;
   let parsed: URL;
   try { parsed = new URL(urlValue); } catch { return null; }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
-  const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+  if (parsed.username || parsed.password || parsed.port) return null;
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, "").replace(/^m\.(?=facebook\.com$)/, "");
   const path = parsed.pathname.replace(/^\/+|\/+$/g, "");
   const parts = path.split("/").filter(Boolean);
   const validHandle = (handle: string) => /^[A-Za-z0-9._]{1,64}$/.test(handle) && !handle.includes("..");
@@ -41,14 +42,14 @@ export function socialProfileUrl(platform: SocialPlatform, raw: string): string 
       return `https://wa.me/${number}`;
     }
     case "x":
-      if (host !== "x.com" || parts.length !== 1 || !/^[A-Za-z0-9._]{1,15}$/.test(parts[0]) || parts[0].includes("..")) return null;
+      if (!["x.com", "twitter.com"].includes(host) || parts.length !== 1 || !/^[A-Za-z0-9._]{1,15}$/.test(parts[0]) || parts[0].includes("..")) return null;
       return `https://x.com/${encodeURIComponent(parts[0])}`;
     case "tiktok":
       if (host !== "tiktok.com" || parts.length !== 1 || !/^@[A-Za-z0-9._]{2,24}$/.test(parts[0])) return null;
       return `https://www.tiktok.com/@${encodeURIComponent(parts[0].slice(1))}`;
     case "facebook": {
       if (host !== "facebook.com") return null;
-      if (parts[0]?.toLowerCase() === "profile.php") {
+      if (parts.length === 1 && parts[0]?.toLowerCase() === "profile.php") {
         const id = parsed.searchParams.get("id");
         return id && /^[0-9]{5,32}$/.test(id) ? `https://www.facebook.com/profile.php?id=${id}` : null;
       }
