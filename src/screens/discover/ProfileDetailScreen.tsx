@@ -1,3 +1,4 @@
+import { SocialLogo } from "@/components/SocialLogo";
 import React, { useMemo, useState } from "react";
 import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,11 +17,6 @@ type Props = NativeStackScreenProps<AppStackParamList, "ProfileDetail">;
 const PLATFORM_LABEL: Record<ContactPlatform, string> = {
   facebook: "Facebook", telegram: "Telegram", x: "X", tiktok: "TikTok",
   instagram: "Instagram", line: "LINE", whatsapp: "WhatsApp", wechat: "WeChat",
-};
-const PLATFORM_ICON: Record<ContactPlatform, keyof typeof Ionicons.glyphMap> = {
-  facebook: "logo-facebook", telegram: "paper-plane-outline", x: "logo-twitter",
-  tiktok: "musical-notes-outline", instagram: "logo-instagram",
-  line: "chatbubble-ellipses-outline", whatsapp: "chatbubble-outline", wechat: "chatbubbles-outline",
 };
 const getPlatformColor = (colors: Palette): Record<ContactPlatform, string> => ({
   facebook: "#1877F2", telegram: "#229ED9", x: colors.text, tiktok: colors.text,
@@ -83,7 +79,7 @@ export function ProfileDetailScreen({ route }: Props) {
     setProfileBlocked(profile.id, nextBlocked, profile.displayName).then(() => {
       setBlocked(nextBlocked);
       Alert.alert(nextBlocked ? "Profile blocked" : "Profile unblocked", nextBlocked
-        ? `${profile.displayName} is blocked and their CatchYa requests and chats will no longer be available.`
+        ? `${profile.displayName} is blocked and their Crossa requests and chats will no longer be available.`
         : `${profile.displayName} is unblocked.`);
     }).catch(() => Alert.alert("Couldn’t update block status", "Please try again."));
   };
@@ -102,7 +98,7 @@ export function ProfileDetailScreen({ route }: Props) {
       <View style={styles.contactCard}>
         {contactLinks.length ? contactLinks.map((link, index) => (
           <Pressable key={`${link.platform}-${index}`} style={[styles.contactRow, index > 0 && styles.rowDivider]} onPress={() => openContact(link)} accessibilityRole="button" accessibilityLabel={`Open ${PLATFORM_LABEL[link.platform]}`}>
-            <View style={[styles.platformIcon, { backgroundColor: `${PLATFORM_COLOR[link.platform]}14` }]}><Ionicons name={PLATFORM_ICON[link.platform]} size={19} color={PLATFORM_COLOR[link.platform]} /></View>
+            <View style={[styles.platformIcon, { backgroundColor: `${PLATFORM_COLOR[link.platform]}14` }]}><SocialLogo platform={link.platform} size={19} /></View>
             <View style={styles.contactText}><Text style={styles.platformName}>{PLATFORM_LABEL[link.platform]}</Text><Text style={styles.accountValue} numberOfLines={1}>{link.value}</Text></View>
             <Ionicons name="open-outline" size={17} color={colors.muted} />
           </Pressable>
