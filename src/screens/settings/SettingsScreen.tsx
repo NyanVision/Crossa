@@ -6,7 +6,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useDiscoveryExpiry } from "@/hooks/useDiscoveryExpiry";
 import { useAuth } from "@/context/AuthContext";
 import { useAppAppearance, type AppearanceChoice } from "@/context/AppearanceContext";
-import { registerForPushNotifications } from "@/services/notifications";
+import { registerForPushNotifications, unregisterPushDevice } from "@/services/notifications";
 import { loadProfile } from "@/services/profileStorage";
 import { emptyAboutYouPreferences, loadAboutYouPreferences, visibleGenderLabel, type AboutYouPreferences } from "@/services/aboutYouPreferences";
 import { loadDiscoveryPreferences, saveDiscoveryPreferences, type DiscoveryPreferences, type VisibilityDuration } from "@/services/discoveryPreferences";
@@ -38,6 +38,7 @@ export function SettingsScreen({ navigation }: Props) {
   const [discovery, setDiscovery] = useState<DiscoveryPreferences>({ enabled: false, duration: "15 minutes", expiresAt: null });
   const [blockedProfiles, setBlockedProfiles] = useState<BlockedProfile[]>([]);
   const [notificationsOn, setNotificationsOn] = useState(false);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [discoveryBusy, setDiscoveryBusy] = useState(false);
   const [showDiscoveryDurationPicker, setShowDiscoveryDurationPicker] = useState(false);
@@ -115,27 +116,32 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   const toggleNotifications = async (enabled: boolean) => {
+    if (!userId || notificationsBusy) return;
+    setNotificationsBusy(true);
     const key = `catchya:notificationsEnabled:${userId ?? "local"}`;
-    if (!enabled) {
-      setNotificationsOn(false);
-      await AsyncStorage.setItem(key, "false");
-      if (userId) await saveUserSettings(userId, { notificationsEnabled: false });
-      return;
-    }
     try {
-      const token = await registerForPushNotifications();
+      if (!enabled) {
+        // The server preference suppresses delivery even if removing a device fails.
+        await saveUserSettings(userId, { notificationsEnabled: false });
+        setNotificationsOn(false);
+        await AsyncStorage.setItem(key, "false");
+        await unregisterPushDevice();
+        return;
+      }
+      const token = await registerForPushNotifications(userId);
+      await saveUserSettings(userId, { notificationsEnabled: !!token });
       setNotificationsOn(!!token);
       await AsyncStorage.setItem(key, token ? "true" : "false");
-      if (userId) await saveUserSettings(userId, { notificationsEnabled: !!token });
       if (!token) {
+        await unregisterPushDevice();
         Alert.alert("Notifications unavailable", "Enable notifications for Crossa in your device settings. Push notification delivery also needs a configured app service.", [
           { text: "Open Settings", onPress: () => { void Linking.openSettings(); } },
           { text: "Cancel", style: "cancel" },
         ]);
       }
     } catch {
-      Alert.alert("Couldn’t enable notifications", "Please try again or check your device settings.");
-    }
+      Alert.alert("Couldn’t update notifications", "Check your connection and device settings, then try again.");
+    } finally { setNotificationsBusy(false); }
   };
 
   const unblock = async (person: BlockedProfile) => {
@@ -227,7 +233,7 @@ export function SettingsScreen({ navigation }: Props) {
         <View style={styles.switchRow}>
           <View style={styles.leadingIcon}><Ionicons name="notifications-outline" size={18} color={colors.text} /></View>
           <View style={styles.rowCopy}><Text style={styles.rowTitle}>Push notifications</Text><Text style={styles.rowDescription}>Get alerts for message requests and chats.</Text></View>
-          <Switch value={notificationsOn} onValueChange={toggleNotifications} trackColor={{ false: colors.border, true: colors.accent }} thumbColor="#FFFFFF" accessibilityLabel="Push notifications" />
+          <Switch value={notificationsOn} disabled={notificationsBusy} onValueChange={toggleNotifications} trackColor={{ false: colors.border, true: colors.accent }} thumbColor="#FFFFFF" accessibilityLabel="Push notifications" />
         </View>
       </View>
 
@@ -355,3 +361,4 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   destructiveIcon: { backgroundColor: colors.dangerSoft },
   destructiveText: { color: colors.danger },
 });
+

@@ -25,10 +25,11 @@ const Stack = createNativeStackNavigator<AuthStackParamList>();
 // Header styling follows each platform's convention: large, left-aligned
 // titles with a back chevron on iOS; centered titles with a back arrow and
 // a subtle elevation line on Android (handled by the navigator defaults).
-export function AuthNavigator({ signedInAsUser }: { signedInAsUser: boolean }) {
+export function AuthNavigator({ signedInAsUser, recovering = false }: { signedInAsUser: boolean; recovering?: boolean }) {
   const { colors } = useTheme();
   return (
     <Stack.Navigator
+      key={recovering ? "recovery" : signedInAsUser ? "onboarding" : "auth"}
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
         headerShadowVisible: Platform.OS === "android",
@@ -37,7 +38,9 @@ export function AuthNavigator({ signedInAsUser }: { signedInAsUser: boolean }) {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      {!signedInAsUser ? (
+      {recovering ? (
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ title: "Choose a new password", headerBackVisible: false, gestureEnabled: false }} />
+      ) : !signedInAsUser ? (
         <>
           <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="SignIn" component={SignInScreen} options={{ title: "" }} />
@@ -54,3 +57,4 @@ export function AuthNavigator({ signedInAsUser }: { signedInAsUser: boolean }) {
     </Stack.Navigator>
   );
 }
+

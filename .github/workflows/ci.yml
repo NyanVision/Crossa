@@ -1,0 +1,31 @@
+name: Crossa checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  app-and-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - name: Typecheck push Edge Functions
+        run: deno check --no-lock --node-modules-dir=manual supabase/functions/register-push-device/index.ts supabase/functions/dispatch-push/index.ts
+      - name: Bundle iOS and Android
+        run: npx expo export --platform ios --platform android --output-dir dist
