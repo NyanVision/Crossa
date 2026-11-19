@@ -1,5 +1,9 @@
 # Crossa — Expo / React Native / TypeScript
 
+Password recovery and push registration/delivery are implemented. See
+[PASSWORD-AND-PUSH.md](PASSWORD-AND-PUSH.md) for deployment, configuration,
+delivery behavior, tests, and remaining physical-device verification.
+
 Crossa is an existing Expo React Native app with TypeScript and React Navigation. The current screens, navigation, styles, and component layout remain in place; this backend integration replaces local-only service implementations with Supabase Auth, Postgres, Storage, and Realtime.
 
 ## Existing frontend structure
@@ -182,3 +186,4 @@ Existing native application IDs, Expo project slug/ID, OAuth callback scheme,
 storage keys, and database migration filenames retain their original identifiers
 to preserve installed-app updates, sign-in redirects, and saved preferences.
 GitHub repository naming is independent of those identifiers.
+

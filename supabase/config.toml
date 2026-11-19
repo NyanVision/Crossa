@@ -17,3 +17,11 @@ additional_redirect_urls = ["catchya://auth/callback", "catchya://auth/reset-pas
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.register-push-device]
+verify_jwt = true
+
+[functions.dispatch-push]
+# The scheduler uses a dedicated PUSH_WORKER_SECRET, verified by the handler.
+verify_jwt = false
+

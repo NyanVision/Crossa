@@ -1,6 +1,8 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/Button";
+import { Banner } from "@/components/Banner";
+import { useAuth } from "@/context/AuthContext";
 import { type Palette } from "@/theme/colors";
 import { useThemedStyles } from "@/context/AppearanceContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -11,6 +13,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, "Welcome">;
 // Intentionally text-only — no people collage or stock photography.
 export function WelcomeScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
+  const { error } = useAuth();
   return (
     <View style={styles.wrap}>
       <View style={styles.brand}>
@@ -22,6 +25,7 @@ export function WelcomeScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.actions}>
+        <Banner message={error} />
         <Button label="Get started" variant="primary" onPress={() => navigation.navigate("CreateAccount")} />
         <Button
           label="I already have an account"
@@ -65,3 +69,4 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   },
   actions: { width: "100%" },
 });
+

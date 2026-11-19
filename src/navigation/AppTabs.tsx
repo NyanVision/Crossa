@@ -1,4 +1,5 @@
 import React from "react";
+import type { NavigatorScreenParams } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,7 +29,13 @@ export type AppStackParamList = {
   QrDiscovery: { startInScan?: boolean } | undefined;
 };
 
-const Tab = createBottomTabNavigator();
+export type AppTabParamList = {
+  DiscoverTab: NavigatorScreenParams<AppStackParamList>;
+  MessagesTab: NavigatorScreenParams<AppStackParamList>;
+  ProfileTab: NavigatorScreenParams<AppStackParamList>;
+};
+
+const Tab = createBottomTabNavigator<AppTabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
 function DiscoverStack() {
@@ -93,3 +100,4 @@ export function AppTabs() {
     </Tab.Navigator>
   );
 }
+
