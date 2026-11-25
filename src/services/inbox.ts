@@ -23,7 +23,7 @@ export async function loadInbox(): Promise<InboxConversation[]> {
     id: row.id,
     profileId: row.profile_id,
     displayName: row.display_name,
-    photoUri: await signedProfilePhotoUrl(row.photo_path),
+    photoUri: await signedProfilePhotoUrl(row.photo_path).catch(() => null),
     lastMessage: row.last_message ?? "",
     updatedAt: row.updated_at,
     unreadCount: Number(row.unread_count ?? 0),
@@ -64,36 +64,69 @@ export async function markInboxConversationRead(id: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function loadConversationMessages(requestId: string): Promise<ChatMessage[]> {
+export interface MessageCursor { createdAt: string; id: string }
+export interface MessagePage { messages: ChatMessage[]; hasOlder: boolean; cursor: MessageCursor | null }
+export async function loadConversationMessages(requestId: string, before?: MessageCursor | null, search = ""): Promise<MessagePage> {
   const client = requireSupabase();
   const [{ data: { user }, error: authError }, { data, error }] = await Promise.all([
     client.auth.getUser(),
-    client.from("messages").select("id,sender_id,body,created_at")
-      .eq("request_id", requestId).order("created_at", { ascending: true }),
+    client.rpc("conversation_messages", { p_request_id: requestId, p_before: before?.createdAt ?? null,
+      p_before_id: before?.id ?? null, p_search: search.trim(), p_limit: 41 }),
   ]);
   if (authError) throw authError;
   if (error) throw error;
   if (!user) throw new Error("Sign in again to open this conversation.");
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    from: row.sender_id === user.id ? "me" : "them",
-    text: row.body,
-    createdAt: row.created_at,
-  }));
+  const rows = (data ?? []).slice(0, 40) as { id: string; sender_id: string; body: string; created_at: string }[];
+  const oldest = rows.at(-1);
+  return {
+    hasOlder: (data?.length ?? 0) > 40,
+    cursor: oldest ? { id: oldest.id, createdAt: oldest.created_at } : null,
+    messages: rows.reverse().map((row) => ({
+      id: row.id,
+      from: row.sender_id === user.id ? "me" : "them",
+      text: row.body,
+      createdAt: row.created_at,
+    })),
+  };
 }
 
-export async function appendInboxMessage(requestId: string, text: string): Promise<ChatMessage> {
+export async function appendInboxMessage(requestId: string, text: string, clientId: string): Promise<ChatMessage> {
   const client = requireSupabase();
   const { data: { user }, error: authError } = await client.auth.getUser();
   if (authError) throw authError;
   if (!user) throw new Error("Sign in again to send a message.");
-  const { data, error } = await client.from("messages").insert({
-    request_id: requestId,
-    sender_id: user.id,
-    body: text.trim(),
-  }).select("id,sender_id,body,created_at").single();
+  const { data, error } = await client.rpc("send_chat_message", {
+    p_request_id: requestId, p_body: text.trim(), p_client_id: clientId,
+  }).single();
   if (error) throw error;
-  return { id: data.id, from: "me", text: data.body, createdAt: data.created_at };
+  const row = data as { id: string; body: string; created_at: string };
+  return { id: row.id, from: "me", text: row.body, createdAt: row.created_at };
+}
+
+export async function loadConversationState(requestId: string): Promise<{ peerReadAt: string | null; typingUntil: string | null }> {
+  const { data, error } = await requireSupabase().rpc("conversation_state", { p_request_id: requestId }).single();
+  if (error) throw error;
+  const row = data as { peer_read_at: string | null; typing_until: string | null };
+  return { peerReadAt: row.peer_read_at, typingUntil: row.typing_until };
+}
+
+export async function loadConversationUpdates(requestId: string, after: MessageCursor): Promise<{ messages: ChatMessage[]; hasMore: boolean }> {
+  const client = requireSupabase();
+  const [{ data: { user }, error: authError }, { data, error }] = await Promise.all([
+    client.auth.getUser(), client.rpc("conversation_messages_after", {
+      p_request_id: requestId, p_after: after.createdAt, p_after_id: after.id, p_limit: 101,
+    }),
+  ]);
+  if (authError) throw authError;
+  if (error) throw error;
+  if (!user) throw new Error("Sign in again to open this conversation.");
+  const rows = (data ?? []).slice(0, 100) as { id: string; sender_id: string; body: string; created_at: string }[];
+  return { hasMore: (data?.length ?? 0) > 100, messages: rows.map((row) => ({ id: row.id, from: row.sender_id === user.id ? "me" : "them", text: row.body, createdAt: row.created_at })) };
+}
+
+export async function setConversationTyping(requestId: string, typing: boolean): Promise<void> {
+  const { error } = await requireSupabase().rpc("set_conversation_typing", { p_request_id: requestId, p_typing: typing });
+  if (error) throw error;
 }
 
 /** Blocking removes access server-side; the inbox RPC will omit the row on the next refresh. */

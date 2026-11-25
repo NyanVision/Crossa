@@ -22,6 +22,13 @@ export function constantTimeEqual(expected: string, provided: string): boolean {
   return difference === 0;
 }
 
+/** Supports existing environment credentials and a Vault-backed scheduled worker. */
+export async function authorizePushWorker(provided: string, expected: string | undefined, verifyVault: (secret: string) => Promise<boolean>): Promise<boolean> {
+  if (provided.length < 32 || provided.length > 256) return false;
+  if (expected && expected.length >= 32 && constantTimeEqual(expected, provided)) return true;
+  return verifyVault(provided);
+}
+
 export function expoOutcome(result: ExpoResult | null | undefined, receipt = false, receiptExpired = false): PushOutcome {
   if (result?.details?.error === "DeviceNotRegistered") return "invalid";
   if (result?.details?.error === "MessageTooBig" || result?.details?.error === "InvalidCredentials") return "failed";

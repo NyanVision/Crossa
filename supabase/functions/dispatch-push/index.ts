@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.117.3";
-import { constantTimeEqual, expoOutcome, pushPayload, type ExpoResult, type PushKind } from "../_shared/push.ts";
+import { authorizePushWorker, expoOutcome, pushPayload, type ExpoResult, type PushKind } from "../_shared/push.ts";
 
 const EXPO_API = "https://exp.host/--/api/v2/push/";
 type Claim = { id: string; lease_token: string; token: string; recipient_id: string; request_id: string; kind: PushKind; attempts: number };
@@ -10,13 +10,16 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
   const expected = Deno.env.get("PUSH_WORKER_SECRET");
   const provided = request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!expected || expected.length < 32 || provided.length > 256 || !constantTimeEqual(expected, provided)) {
-    return json({ error: "Unauthorized" }, 401);
-  }
+  if (provided.length < 32 || provided.length > 256) return json({ error: "Unauthorized" }, 401);
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !key) return json({ error: "Push dispatch is not configured." }, 500);
   const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const authorized = await authorizePushWorker(provided, expected, async (secret) => {
+    const { data, error } = await admin.rpc("verify_crossa_push_secret", { p_secret: secret });
+    return !error && data === true;
+  }).catch(() => false);
+  if (!authorized) return json({ error: "Unauthorized" }, 401);
   try {
     const receiptsChecked = await processReceipts(admin);
     const { data, error } = await admin.rpc("claim_push_deliveries", { p_limit: 25 });

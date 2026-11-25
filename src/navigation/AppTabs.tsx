@@ -15,6 +15,8 @@ import { AboutYouSettingsScreen } from "@/screens/settings/AboutYouSettingsScree
 import { QrDiscoveryScreen } from "@/screens/discover/QrDiscoveryScreen";
 import { useTheme } from "@/context/AppearanceContext";
 import type { NearbyProfile } from "@/services/discovery";
+import { ModerationScreen } from "@/screens/settings/ModerationScreen";
+import { useInbox } from "@/context/InboxContext";
 
 export type AppStackParamList = {
   Discover: undefined;
@@ -26,6 +28,7 @@ export type AppStackParamList = {
   Chat: { chatId: string };
   MessageRequestDetail: { requestId: string };
   Settings: undefined;
+  Moderation: undefined;
   QrDiscovery: { startInScan?: boolean } | undefined;
 };
 
@@ -45,6 +48,7 @@ function DiscoverStack() {
       <Stack.Screen name="Discover" component={DiscoverScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ProfileDetail" component={ProfileDetailScreen} options={{ title: "Profile" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+      <Stack.Screen name="Moderation" component={ModerationScreen} options={{ title: "Report review" }} />
       <Stack.Screen name="AboutYouSettings" component={AboutYouSettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
       <Stack.Screen name="QrDiscovery" component={QrDiscoveryScreen} options={{ headerShown: false }} />
@@ -68,6 +72,7 @@ function ProfileStack() {
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+      <Stack.Screen name="Moderation" component={ModerationScreen} options={{ title: "Report review" }} />
       <Stack.Screen name="AboutYouSettings" component={AboutYouSettingsScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
@@ -77,6 +82,8 @@ function ProfileStack() {
 // @react-navigation/bottom-tabs (ripple on Android, translucent blur on iOS).
 export function AppTabs() {
   const { colors } = useTheme();
+  const { conversations } = useInbox();
+  const unread = conversations.reduce((total, item) => total + item.unreadCount, 0);
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -95,7 +102,7 @@ export function AppTabs() {
       })}
     >
       <Tab.Screen name="DiscoverTab" component={DiscoverStack} options={{ title: "Discover" }} />
-      <Tab.Screen name="MessagesTab" component={MessagesStack} options={{ title: "Inbox" }} />
+      <Tab.Screen name="MessagesTab" component={MessagesStack} options={{ title: "Inbox", tabBarBadge: unread ? Math.min(unread, 99) : undefined }} />
       <Tab.Screen name="ProfileTab" component={ProfileStack} options={{ title: "Profile" }} />
     </Tab.Navigator>
   );

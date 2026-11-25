@@ -1,10 +1,14 @@
 import React, { useCallback, useState } from "react";
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { loadInbox, removeInboxConversation } from "@/services/inbox";
-import { recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
-import type { InboxConversation, InboxStatus } from "@/types";
+import { setProfileBlocked } from "@/services/profileSafety";
+import { cancelMessageRequest } from "@/services/messageRequests";
+import { serviceMessage } from "@/services/messageState";
+import { useInbox } from "@/context/InboxContext";
+import { useReporting } from "@/context/ReportContext";
+import { Button } from "@/components/Button";
+import type { InboxConversation, InboxStatus, SentRequest } from "@/types";
 import { type Palette, radii } from "@/theme/colors";
 import { useTheme, useThemedStyles } from "@/context/AppearanceContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -14,23 +18,21 @@ type Props = NativeStackScreenProps<AppStackParamList, "Messages">;
 
 export function MessagesScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
-  const [tab, setTab] = useState<InboxStatus>("chat");
-  const [conversations, setConversations] = useState<InboxConversation[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(() => {
-    let active = true;
-    loadInbox().then((items) => { if (active) setConversations(items); })
-      .catch(() => { if (active) setConversations([]); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
-
-  useFocusEffect(refresh);
+  const { colors, isDark } = useTheme();
+  const { conversations, sentRequests, loading, error, refresh } = useInbox();
+  const { report } = useReporting();
+  const [tab, setTab] = useState<InboxStatus | "sent">("chat");
+  const [search, setSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  const reload = async () => { setRefreshing(true); try { await refresh(); } finally { setRefreshing(false); } };
 
   const chats = conversations.filter((item) => item.status === "chat");
   const requests = conversations.filter((item) => item.status === "request");
-  const visible = tab === "chat" ? chats : requests;
+  const query = search.trim().toLocaleLowerCase();
+  const visible = (tab === "chat" ? chats : requests).filter((item) => `${item.displayName} ${item.lastMessage}`.toLocaleLowerCase().includes(query));
+  const visibleSent = sentRequests.filter((item) => `${item.displayName} ${item.status}`.toLocaleLowerCase().includes(query));
 
 
 
@@ -39,24 +41,25 @@ export function MessagesScreen({ navigation }: Props) {
     undefined,
     [
       { text: "Cancel", style: "cancel" },
-      { text: "Report", onPress: () => Alert.alert("Report profile?", `Report ${conversation.displayName} for review?`, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Report", style: "destructive", onPress: async () => {
-          try {
-            await recordProfileReport(conversation.profileId);
-            Alert.alert("Report saved", "Your report has been submitted for review.");
-          } catch { Alert.alert("Report not saved", "Please try again."); }
-        } },
-      ]) },
+      { text: "Report", onPress: () => report(conversation.profileId, conversation.displayName) },
       { text: "Block", style: "destructive", onPress: async () => {
         try {
           await setProfileBlocked(conversation.profileId, true, conversation.displayName);
-          await removeInboxConversation(conversation.id);
-          setConversations((current) => current.filter((item) => item.id !== conversation.id));
+          await refresh();
         } catch { Alert.alert("Couldn’t block profile", "Please try again."); }
       } },
     ]
   );
+
+  const cancel = (request: SentRequest) => Alert.alert("Cancel this request?", `Your pending request to ${request.displayName} will be withdrawn.`, [
+    { text: "Keep request", style: "cancel" },
+    { text: "Cancel request", style: "destructive", onPress: async () => {
+      setCancelling(request.id);
+      try { await cancelMessageRequest(request.id); await refresh(); }
+      catch (cause) { Alert.alert("Couldn’t cancel request", serviceMessage(cause, "Please try again.")); }
+      finally { setCancelling(null); }
+    } },
+  ]);
 
   const onSelect = (conversation: InboxConversation) => {
     if (conversation.status === "request") {
@@ -69,17 +72,27 @@ export function MessagesScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
       <View style={styles.topbar}><Text style={styles.title}>Inbox</Text><Text style={styles.subtitle}>Your chats and message requests</Text></View>
+      <View style={styles.searchWrap}><Ionicons name="search" size={18} color={colors.muted} /><TextInput accessibilityLabel="Search inbox" placeholder="Search people or messages" placeholderTextColor={colors.muted} keyboardAppearance={isDark ? "dark" : "light"} value={search} onChangeText={setSearch} maxLength={100} style={styles.searchInput} />{search ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setSearch("")} style={styles.clearSearch}><Ionicons name="close" size={20} color={colors.text} /></Pressable> : null}</View>
       <View style={styles.tabs}>
         <InboxTab label="Chats" count={chats.length} selected={tab === "chat"} onPress={() => setTab("chat")} />
         <InboxTab label="Requests" count={requests.length} selected={tab === "request"} onPress={() => setTab("request")} />
+        <InboxTab label="Sent" count={sentRequests.filter((item) => item.status === "pending").length} selected={tab === "sent"} onPress={() => setTab("sent")} />
       </View>
-      <FlatList
+      {error ? <View style={styles.errorNotice}><Text style={styles.errorText} accessibilityRole="alert">{error}</Text><Button label="Retry" onPress={() => void reload()} loading={refreshing} /></View> : null}
+      {tab === "sent" ? <FlatList data={visibleSent} keyExtractor={(item) => item.id} refreshing={refreshing} onRefresh={() => void reload()} contentContainerStyle={visibleSent.length ? styles.list : styles.emptyList}
+        renderItem={({ item }) => <View style={styles.conversationCard}>
+          <ProfilePhoto uri={item.photoUri} size={44} /><View style={styles.messageMeta}><Text style={styles.name}>{item.displayName}</Text><Text style={styles.preview}>{item.status === "pending" ? "Waiting for a response" : item.status === "accepted" ? "Accepted · chat is ready" : item.status === "declined" ? "Declined" : "Cancelled"}</Text>{item.cooldownUntil && new Date(item.cooldownUntil).getTime() > Date.now() ? <Text style={styles.preview}>You can request again after {new Date(item.cooldownUntil).toLocaleString()}.</Text> : null}</View>
+          {item.status === "pending" ? <Pressable disabled={cancelling !== null} onPress={() => cancel(item)} accessibilityRole="button" accessibilityLabel={`Cancel request to ${item.displayName}`} style={styles.cancelRequest}><Text style={styles.errorText}>{cancelling === item.id ? "Cancelling…" : "Cancel"}</Text></Pressable> : item.status === "accepted" ? <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${item.displayName}`} onPress={() => navigation.navigate("Chat", { chatId: item.id })} style={styles.cancelRequest}><Ionicons name="chatbubble-outline" size={22} color={colors.accent} /></Pressable> : null}
+        </View>}
+        ListEmptyComponent={error ? null : <Text style={styles.emptyCopy}>{loading ? "Loading sent requests…" : query ? "No matching sent requests." : "Requests you send will appear here with their status."}</Text>} /> : <FlatList
         data={visible}
         keyExtractor={(item) => item.id}
+        refreshing={refreshing}
+        onRefresh={() => void reload()}
         contentContainerStyle={visible.length ? styles.list : styles.emptyList}
         renderItem={({ item }) => <ConversationRow conversation={item} onPress={() => onSelect(item)} onMenu={() => openMenu(item)} />}
-        ListEmptyComponent={<EmptyInbox tab={tab} loading={loading} />}
-      />
+        ListEmptyComponent={error ? null : query ? <Text style={styles.emptyCopy}>No matches for “{search.trim()}”.</Text> : <EmptyInbox tab={tab} loading={loading} />}
+      />}
     </View>
   );
 }
@@ -138,6 +151,12 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   topbar: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
   title: { color: colors.text, fontSize: 22, fontWeight: "800" },
   subtitle: { color: colors.muted, fontSize: 12, marginTop: 3 },
+  searchWrap: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 12, paddingHorizontal: 12, minHeight: 46, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12 },
+  searchInput: { flex: 1, color: colors.text, minHeight: 44, fontSize: 14 },
+  clearSearch: { padding: 10 },
+  errorNotice: { marginHorizontal: 16, marginBottom: 10, borderRadius: 12, padding: 12, backgroundColor: colors.dangerSoft },
+  errorText: { color: colors.danger, fontSize: 12, lineHeight: 18 },
+  cancelRequest: { minHeight: 44, minWidth: 44, paddingHorizontal: 8, justifyContent: "center", alignItems: "center" },
   tabs: { flexDirection: "row", marginHorizontal: 16, padding: 4, borderRadius: 13, backgroundColor: colors.borderSoft, marginBottom: 8 },
   tab: { flex: 1, height: 39, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderRadius: 10 },
   tabSelected: { backgroundColor: colors.surface, shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, elevation: 1 },
