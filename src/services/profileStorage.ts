@@ -1,4 +1,5 @@
 import * as Crypto from "expo-crypto";
+import { profilePhotoPayload } from "./profilePhotoPayload";
 import type { CurrentUser, SocialPlatform } from "@/types";
 import { requireSupabase } from "@/services/supabase";
 
@@ -62,10 +63,20 @@ async function uploadProfilePhoto(userId: string, uri: string): Promise<string> 
   const response = await fetch(uri);
   if (!response.ok) throw new Error("The selected photo could not be read.");
   const blob = await response.blob();
-  const extension = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+  // React Native's Blob/FormData upload can label the part as text/plain.
+  // Read the bytes explicitly so Storage receives a raw image body.
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("The selected photo could not be read."));
+    reader.onload = () => typeof reader.result === "string"
+      ? resolve(reader.result)
+      : reject(new Error("The selected photo could not be read."));
+    reader.readAsDataURL(blob);
+  });
+  const { body, contentType, extension } = profilePhotoPayload(dataUrl, uri);
   const path = `${userId}/${Crypto.randomUUID()}.${extension}`;
-  const { error } = await requireSupabase().storage.from(AVATAR_BUCKET).upload(path, blob, {
-    contentType: blob.type || "image/jpeg",
+  const { error } = await requireSupabase().storage.from(AVATAR_BUCKET).upload(path, body, {
+    contentType,
     upsert: false,
   });
   if (error) throw error;
