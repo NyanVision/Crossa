@@ -9,6 +9,8 @@ import { AppTabs, type AppTabParamList } from "@/navigation/AppTabs";
 import { setActivePushUser, synchronizePushToken, watchPushTokenRotation } from "@/services/notifications";
 import { notificationRequestId } from "@/services/notificationLinks";
 import { loadInbox } from "@/services/inbox";
+import { InboxProvider } from "@/context/InboxContext";
+import { ReportProvider } from "@/context/ReportContext";
 
 const navigationRef = createNavigationContainerRef<AppTabParamList>();
 
@@ -85,7 +87,7 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer theme={navTheme} ref={navigationRef} onReady={() => setNavigationReady(true)}>
-      {status === "signedIn" ? <AppTabs /> : <AuthNavigator signedInAsUser={status === "onboarding"} recovering={status === "recovering"} />}
+      {status === "signedIn" ? <InboxProvider key={userId}><ReportProvider><AppTabs /></ReportProvider></InboxProvider> : <AuthNavigator signedInAsUser={status === "onboarding"} recovering={status === "recovering"} />}
     </NavigationContainer>
   );
 }

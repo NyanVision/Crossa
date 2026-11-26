@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { type Palette, radii } from "@/theme/colors";
 import { useTheme, useThemedStyles } from "@/context/AppearanceContext";
@@ -20,6 +21,7 @@ interface Props {
 export function AboutYouForm({ initialValue, submitLabel, saving = false, onSave, onCancel }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [gender, setGender] = useState<GenderOption | null>(initialValue.gender);
   const [genderDescription, setGenderDescription] = useState(initialValue.genderDescription);
   const [showGenderOnProfile, setShowGenderOnProfile] = useState(initialValue.showGenderOnProfile);
@@ -68,7 +70,7 @@ export function AboutYouForm({ initialValue, submitLabel, saving = false, onSave
   });
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: 18 + insets.top, paddingBottom: 30 + insets.bottom }]} keyboardShouldPersistTaps="handled">
       <View style={styles.intro}><Text style={styles.title}>A little about you</Text><Text style={styles.introText}>These questions are optional. You can skip either one and change your answers later.</Text></View>
 
       <View style={styles.questionCard}>
@@ -124,14 +126,14 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   questionTitle: { color: colors.text, fontSize: 14, fontWeight: "800", flex: 1 },
   questionHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 7, marginBottom: 10 },
   optionsList: { gap: 6 },
-  optionRow: { minHeight: 43, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 10, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: "#FFFFFF" },
-  optionSelected: { borderColor: colors.accentSoftBorder, backgroundColor: colors.surfaceAlt },
-  radioOuter: { width: 19, height: 19, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  optionRow: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceAlt },
+  optionSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.muted, alignItems: "center", justifyContent: "center" },
   radioOuterSelected: { borderColor: colors.accent },
   radioInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.accent },
-  optionText: { color: colors.text, fontSize: 12.5, fontWeight: "600", flex: 1 },
+  optionText: { color: colors.text, fontSize: 14, lineHeight: 20, fontWeight: "600", flex: 1 },
   optionTextSelected: { color: colors.accent, fontWeight: "800" },
-  optionalLabel: { color: colors.muted, fontSize: 9.5 },
+  optionalLabel: { color: colors.muted, fontSize: 11 },
   descriptionField: { marginTop: 11 },
   fieldLabel: { color: colors.muted, fontSize: 10.5, fontWeight: "700", marginBottom: 6 },
   input: { minHeight: 42, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, backgroundColor: colors.surface, color: colors.text, paddingHorizontal: 11, fontSize: 12.5 },
@@ -141,7 +143,7 @@ const makeStyles = (colors: Palette) => StyleSheet.create({
   visibilityHint: { color: colors.muted, fontSize: 10, lineHeight: 14, marginTop: 3 },
   skipButton: { alignSelf: "flex-start", paddingVertical: 7, paddingHorizontal: 2, marginTop: 7 },
   skipText: { color: colors.muted, fontSize: 10.5, fontWeight: "700", textDecorationLine: "underline" },
-  checkbox: { width: 19, height: 19, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: colors.muted, alignItems: "center", justifyContent: "center" },
   checkboxSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
   actions: { flexDirection: "row", gap: 10, marginTop: 2 },
   actionButton: { flex: 1 },

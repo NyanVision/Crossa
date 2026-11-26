@@ -25,25 +25,31 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#F5F6F7"
-      }
+      },
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Crossa uses your approximate location to show how far away other opted-in people are."
+          "locationWhenInUsePermission": "Crossa uses your approximate location to show how far away other opted-in people are.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false
         }
       ],
       [
         "expo-image-picker",
         {
           "photosPermission": "Crossa needs photo library access so you can choose a profile photo.",
-          "cameraPermission": "Crossa needs camera access so you can take a profile photo."
+          "cameraPermission": "Crossa needs camera access so you can take a profile photo.",
+          "microphonePermission": false
         }
       ],
       [
@@ -55,7 +61,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Crossa to use your camera to scan QR codes when you choose."
+          "cameraPermission": "Allow Crossa to use your camera to scan QR codes when you choose.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       "expo-web-browser",
@@ -63,9 +71,6 @@
       "expo-font"
     ],
     "extra": {
-      "googleExpoClientId": "REPLACE_WITH_EXPO_GO_CLIENT_ID",
-      "googleIosClientId": "REPLACE_WITH_IOS_CLIENT_ID",
-      "googleAndroidClientId": "REPLACE_WITH_ANDROID_CLIENT_ID",
       "eas": {
         "projectId": "392a2837-7446-46bc-b343-569403b2793c"
       }

@@ -81,6 +81,11 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Local release credentials are supplied outside source control. Expo Build
+// injects its managed release configuration before running Gradle.
+def crossaSigningValue = { name -> System.getenv(name) ?: findProperty(name) }
+def crossaKeystorePath = crossaSigningValue('CROSSA_ANDROID_KEYSTORE_PATH')
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -104,15 +109,21 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            if (crossaKeystorePath) {
+                storeFile file(crossaKeystorePath)
+                storePassword crossaSigningValue('CROSSA_ANDROID_KEYSTORE_PASSWORD')
+                keyAlias crossaSigningValue('CROSSA_ANDROID_KEY_ALIAS')
+                keyPassword (crossaSigningValue('CROSSA_ANDROID_KEY_PASSWORD') ?: crossaSigningValue('CROSSA_ANDROID_KEYSTORE_PASSWORD'))
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -129,6 +140,23 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+// Run after Expo's injected configuration has populated signingConfigs.release.
+// Debug builds still work normally; release artifacts cannot silently use its key.
+gradle.taskGraph.whenReady { graph ->
+    def releaseArtifact = graph.allTasks.any { task ->
+        task.project == project && (task.name in ['assembleRelease', 'bundleRelease', 'packageRelease', 'packageReleaseBundle', 'validateSigningRelease'])
+    }
+    if (releaseArtifact) {
+        def signer = android.buildTypes.release.signingConfig
+        if (signer == null || signer.storeFile == null || !signer.storeFile.isFile() || !signer.storePassword || !signer.keyAlias) {
+            throw new GradleException('Crossa release signing is missing. Use Expo-managed credentials or the CROSSA_ANDROID_KEYSTORE_* and CROSSA_ANDROID_KEY_ALIAS settings. Never commit signing credentials.')
+        }
+        if (signer.keyAlias == 'androiddebugkey' || signer.storeFile.canonicalFile == file('debug.keystore').canonicalFile) {
+            throw new GradleException('Crossa release artifacts must use a production signing key, not the debug keystore.')
+        }
     }
 }
 

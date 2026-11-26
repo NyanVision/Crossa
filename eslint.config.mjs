@@ -10,7 +10,7 @@ export default tseslint.config(
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parserOptions: { ecmaFeatures: { jsx: true } },
-      globals: { console: "readonly", fetch: "readonly", URL: "readonly", setTimeout: "readonly", clearTimeout: "readonly" },
+      globals: { console: "readonly", fetch: "readonly", URL: "readonly", setTimeout: "readonly", clearTimeout: "readonly", setInterval: "readonly", clearInterval: "readonly" },
     },
     rules: { "@typescript-eslint/no-explicit-any": "off", "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }] },
   },

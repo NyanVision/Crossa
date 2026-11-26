@@ -21,8 +21,7 @@ installation that requested them.
 ## Push deployment
 
 Requires access to the actual Crossa Supabase project `hzqzpvaisxnyixqtzets`.
-No hosted changes were made during implementation because the connected
-account cannot access that project.
+Use an account with access to that project when deploying.
 
 After reviewing the changes, sign in with the correct Supabase CLI account:
 
@@ -32,10 +31,12 @@ npm run push:deploy -- --project-ref hzqzpvaisxnyixqtzets
 ```
 
 The script explicitly selects that project, applies pending migrations,
-generates a random server-only worker secret, deploys both push functions,
-stores the secret in Vault, and schedules delivery every minute through
-pg_cron/pg_net. Private temporary files are removed afterward. Running it again
-rotates the worker secret and replaces the named schedule. No paid
+deploys both push functions, creates a random server-only worker credential
+in Vault, and schedules delivery every minute through pg_cron/pg_net.
+The worker verifies Vault credentials through a service-role-only RPC, so no
+manual copying of worker secrets into function settings is necessary.
+Private temporary files are removed afterward. Running it again preserves
+the Vault credential and replaces the named schedule. No paid
 infrastructure or test messages are created.
 
 If Expo push security is enabled, separately set `EXPO_ACCESS_TOKEN` through

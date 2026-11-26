@@ -45,6 +45,17 @@ export interface ChatMessage {
   createdAt?: string;
 }
 
+export type RequestStatus = "pending" | "accepted" | "declined" | "cancelled";
+export interface SentRequest {
+  id: string;
+  profileId: string;
+  displayName: string;
+  photoUri: string | null;
+  status: RequestStatus;
+  createdAt: string;
+  cooldownUntil: string | null;
+}
+
 export interface Chat {
   id: string;
   name: string;

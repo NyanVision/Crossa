@@ -4,7 +4,10 @@ import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } 
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { createMessageRequest } from "@/services/messageRequests";
-import { isProfileBlocked, recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
+import { isProfileBlocked, setProfileBlocked } from "@/services/profileSafety";
+import { useReporting } from "@/context/ReportContext";
+import { useInbox } from "@/context/InboxContext";
+import { serviceMessage } from "@/services/messageState";
 import type { ContactPlatform, PublicContactLink } from "@/types";
 import { socialProfileUrl } from "@/services/socialLinks";
 import { type Palette, radii } from "@/theme/colors";
@@ -23,13 +26,18 @@ const getPlatformColor = (colors: Palette): Record<ContactPlatform, string> => (
   instagram: "#C13584", line: "#06C755", whatsapp: "#25D366", wechat: "#07C160",
 });
 
-export function ProfileDetailScreen({ route }: Props) {
+export function ProfileDetailScreen({ route, navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
   const PLATFORM_COLOR = getPlatformColor(colors);
   const profile = route.params.profile;
   const [blocked, setBlocked] = useState(false);
-  const [requestSent, setRequestSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const { report } = useReporting();
+  const { sentRequests, conversations, refresh } = useInbox();
+  const sent = sentRequests.find((item) => item.profileId === profile.id);
+  const existing = conversations.find((item) => item.profileId === profile.id);
+  const cooldown = sent?.cooldownUntil && new Date(sent.cooldownUntil).getTime() > Date.now() ? sent.cooldownUntil : null;
 
   React.useEffect(() => {
     isProfileBlocked(profile.id).then(setBlocked).catch(() => setBlocked(false));
@@ -50,29 +58,24 @@ export function ProfileDetailScreen({ route }: Props) {
   };
 
   const sendRequest = async () => {
+    if (existing) {
+      navigation.getParent()?.navigate("MessagesTab", { screen: existing.status === "chat" ? "Chat" : "MessageRequestDetail", params: existing.status === "chat" ? { chatId: existing.id } : { requestId: existing.id } });
+      return;
+    }
+    if (sending || sent?.status === "pending" || cooldown) return;
+    setSending(true);
     try {
       const created = await createMessageRequest(profile.id, profile.displayName);
-      setRequestSent(true);
+      await refresh();
       Alert.alert(created ? "Request saved" : "Request already saved", created
         ? `Your connection request to ${profile.displayName} has been sent.`
         : `You already have an active request or connection with ${profile.displayName}.`);
-    } catch {
-      Alert.alert("Request not sent", "Please try again.");
-    }
+    } catch (cause) {
+      Alert.alert("Request not sent", serviceMessage(cause, "Please try again."));
+    } finally { setSending(false); }
   };
 
-  const reportProfile = () => Alert.alert(
-    "Report profile?",
-    `Report ${profile.displayName} for review?`,
-    [{ text: "Cancel", style: "cancel" }, { text: "Report", style: "destructive", onPress: async () => {
-      try {
-        await recordProfileReport(profile.id);
-        Alert.alert("Report saved", "Your report has been submitted for review.");
-      } catch {
-        Alert.alert("Report not saved", "Please try again.");
-      }
-    } }]
-  );
+  const reportProfile = () => report(profile.id, profile.displayName);
 
   const toggleBlock = () => {
     const nextBlocked = !blocked;
@@ -105,7 +108,8 @@ export function ProfileDetailScreen({ route }: Props) {
         )) : <View style={styles.noContacts}><Ionicons name="lock-closed-outline" size={17} color={colors.muted} /><Text style={styles.noContactsText}>No contact accounts shared</Text></View>}
       </View>
 
-      <Button label={requestSent ? "Request saved" : "Message"} variant="primary" disabled={blocked || requestSent} icon={<Ionicons name="chatbubble-outline" size={17} color={colors.accentInk} />} onPress={sendRequest} style={styles.messageButton} />
+      <Button label={existing?.status === "chat" ? "Open chat" : existing?.status === "request" ? "Review request" : sent?.status === "pending" ? "Request pending" : cooldown ? "Request cooldown" : "Message"} variant="primary" loading={sending} disabled={blocked || sending || (!existing && (sent?.status === "pending" || !!cooldown))} icon={<Ionicons name="chatbubble-outline" size={17} color={colors.accentInk} />} onPress={sendRequest} style={styles.messageButton} />
+      {cooldown ? <Text style={styles.genderLabel}>You can send another request after {new Date(cooldown).toLocaleString()}.</Text> : null}
       <View style={styles.safetyActions}>
         <Pressable onPress={toggleBlock} style={styles.safetyButton} accessibilityRole="button"><Ionicons name={blocked ? "checkmark-circle-outline" : "ban-outline"} size={17} color={blocked ? colors.success : colors.danger} /><Text style={[styles.safetyText, blocked && { color: colors.success }]}>{blocked ? "Unblock" : "Block"}</Text></Pressable>
         <View style={styles.actionDivider} />

@@ -19,9 +19,10 @@ additional_redirect_urls = ["catchya://auth/callback", "catchya://auth/reset-pas
 verify_jwt = true
 
 [functions.register-push-device]
-verify_jwt = true
+# The handler verifies the session with Auth.getUser, including modern signing keys.
+verify_jwt = false
 
 [functions.dispatch-push]
-# The scheduler uses a dedicated PUSH_WORKER_SECRET, verified by the handler.
+# The scheduler uses a Vault credential verified through a service-role-only RPC.
 verify_jwt = false
 

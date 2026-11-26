@@ -13,7 +13,14 @@
     "test:auth": "node --test tests/auth.test.mjs tests/authLinks.test.mjs",
     "test:push": "node --test tests/push.test.mjs tests/pushDatabase.test.mjs",
     "push:deploy": "node scripts/deploy-push.mjs",
-    "auth:check": "node scripts/check-auth.mjs"
+    "auth:check": "node scripts/check-auth.mjs",
+    "release:check": "node scripts/check-release.mjs --production",
+    "eas-build-pre-install": "node scripts/check-release.mjs --if-production",
+    "build:development": "npx eas-cli@latest build --profile development",
+    "build:ios-simulator": "npx eas-cli@latest build --platform ios --profile ios-simulator",
+    "build:preview": "npx eas-cli@latest build --profile preview",
+    "build:production": "npx eas-cli@latest build --profile production",
+    "privacy:export": "node scripts/export-privacy.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

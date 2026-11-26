@@ -19,6 +19,7 @@ import { type Palette, radii } from "@/theme/colors";
 import { useTheme, useThemedStyles } from "@/context/AppearanceContext";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AppStackParamList } from "@/navigation/AppTabs";
+import { useReporting } from "@/context/ReportContext";
 
 type Props = NativeStackScreenProps<AppStackParamList, "Settings">;
 const durations: VisibilityDuration[] = ["15 minutes", "30 minutes", "1 hour"];
@@ -30,6 +31,7 @@ const platformLabels: Record<SocialPlatform, string> = {
 export function SettingsScreen({ navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
+  const { canModerate } = useReporting();
   const { width: windowWidth, fontScale } = useWindowDimensions();
   const { userId, signOut, deactivateAccount, deleteAccount } = useAuth();
   const { choice: appearanceChoice, setChoice: setAppearanceChoice } = useAppAppearance();
@@ -246,8 +248,11 @@ export function SettingsScreen({ navigation }: Props) {
         <SettingsRow icon="trash-outline" title="Delete account" description="Permanently remove your account and associated data" destructive onPress={confirmDelete} />
       </View>
 
+      {canModerate ? <><SectionHeading title="Moderation" /><View style={styles.card}><SettingsRow icon="shield-checkmark-outline" title="Review reports" description="Review and track reports submitted by the community" onPress={() => navigation.navigate("Moderation")} /></View></> : null}
       <SectionHeading title="Help" />
       <View style={styles.card}>
+        <SettingsRow icon="document-text-outline" title="Privacy Policy" description="How Crossa uses your information and your privacy choices" onPress={() => navigation.navigate("PrivacyPolicy")} />
+        <View style={styles.rowDivider} />
         <SettingsRow icon="help-circle-outline" title="Privacy and discovery help" description="Learn how visibility, location, and links work" onPress={() => Alert.alert("Privacy and discovery", "Nearby discovery is optional and starts off. When enabled, only opted-in people can find you, your visibility ends at the duration you select, and your exact location is never displayed. Gender stays private unless you turn on Show this on my profile. Your Discover choices are private and only shape your results. Social links appear only when you add them and mark them visible.", [{ text: "Got it" }])} />
         <View style={styles.rowDivider} />
         <SettingsRow icon="information-circle-outline" title="About Crossa" description="Accounts, profiles, discovery, and messages sync securely" onPress={() => Alert.alert("About Crossa", "Crossa uses Supabase for secure account, profile, discovery, and messaging services. Nearby discovery is optional and your exact location is never shown to other users.", [{ text: "Done" }])} />

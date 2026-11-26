@@ -3,7 +3,9 @@ import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "rea
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/components/Button";
 import { acceptInboxRequest, declineInboxRequest, loadInbox, markInboxConversationRead, removeInboxConversation } from "@/services/inbox";
-import { recordProfileReport, setProfileBlocked } from "@/services/profileSafety";
+import { setProfileBlocked } from "@/services/profileSafety";
+import { useReporting } from "@/context/ReportContext";
+import { useInbox } from "@/context/InboxContext";
 import type { InboxConversation } from "@/types";
 import { type Palette, radii } from "@/theme/colors";
 import { useTheme, useThemedStyles } from "@/context/AppearanceContext";
@@ -15,6 +17,8 @@ type Props = NativeStackScreenProps<AppStackParamList, "MessageRequestDetail">;
 export function MessageRequestScreen({ route, navigation }: Props) {
   const styles = useThemedStyles(makeStyles);
   const { colors } = useTheme();
+  const { report: reportPerson } = useReporting();
+  const { conversations, refresh } = useInbox();
   const [request, setRequest] = useState<InboxConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -32,6 +36,12 @@ export function MessageRequestScreen({ route, navigation }: Props) {
 
   const firstMessage = request?.firstMessage?.trim() || request?.messages[0]?.text || request?.lastMessage?.trim() || "";
 
+  useEffect(() => {
+    const current = conversations.find((item) => item.id === route.params.requestId);
+    if (current?.status === "request") setRequest(current);
+    else if (!loading) setRequest(null);
+  }, [conversations, loading, route.params.requestId]);
+
   const accept = async () => {
     if (!request) return;
     setWorking(true);
@@ -42,6 +52,7 @@ export function MessageRequestScreen({ route, navigation }: Props) {
         navigation.goBack();
         return;
       }
+      await refresh();
       navigation.replace("Chat", { chatId: request.id });
     } catch {
       Alert.alert("Couldn’t accept request", "Please try again.");
@@ -58,6 +69,7 @@ export function MessageRequestScreen({ route, navigation }: Props) {
         setWorking(true);
         try {
           await declineInboxRequest(request.id);
+          await refresh();
           navigation.goBack();
         } catch { Alert.alert("Couldn’t decline request", "Please try again."); }
         finally { setWorking(false); }
@@ -74,6 +86,7 @@ export function MessageRequestScreen({ route, navigation }: Props) {
         try {
           await setProfileBlocked(request.profileId, true, request.displayName);
           await removeInboxConversation(request.id);
+          await refresh();
           navigation.goBack();
         } catch { Alert.alert("Couldn’t block profile", "Please try again."); }
         finally { setWorking(false); }
@@ -83,15 +96,7 @@ export function MessageRequestScreen({ route, navigation }: Props) {
 
   const report = () => {
     if (!request) return;
-    Alert.alert("Report this person?", `Report ${request.displayName} for review?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Report", style: "destructive", onPress: async () => {
-        try {
-          await recordProfileReport(request.profileId);
-          Alert.alert("Report saved", "Your report has been submitted for review.");
-        } catch { Alert.alert("Report not saved", "Please try again."); }
-      } },
-    ]);
+    reportPerson(request.profileId, request.displayName);
   };
 
   if (!request) {
