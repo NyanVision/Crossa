@@ -48,6 +48,15 @@ test('keyset history includes every message when timestamps are identical', () =
   assert.equal(ids.length, 125); assert.equal(new Set(ids).size, 125);
   assert.equal(ids[0], messageId(125)); assert.equal(ids.at(-1), messageId(1));
 }));
+test('the deployed nearby-profile repair survives migration replay and repeated profile grants', () => fixture(async () => {
+  await user(A); await db.query("select * from public.set_my_discovery(true,'30 minutes',13.7563,100.5018)");
+  await user(B); await db.query("select * from public.set_my_discovery(true,'30 minutes',13.7564,100.5019)");
+  await user(A);
+  for (let scan = 0; scan < 2; scan++) {
+    const { rows } = await db.query('select * from public.nearby_profiles(13.7563,100.5018,10000)');
+    assert.equal(rows.length, 1); assert.equal(rows[0].profile_id, B);
+  }
+}));
 test('reconnect catch-up pages do not skip a backlog larger than one page', () => fixture(async () => {
   await seedMessages(225); await user(B);
   let after = '2026-11-01T12:00:00Z', afterId = messageId(1); const ids = [];

@@ -3,6 +3,8 @@
 Live inbox updates, sent requests, chat recovery/search, typing/read receipts,
 and report review are described in [MESSAGING-AND-SAFETY.md](MESSAGING-AND-SAFETY.md).
 Apply the matching database migrations before installing a build with these features.
+See [RELEASE.md](RELEASE.md) for the privacy notice, public policy export,
+production preflight, native build profiles, and signing setup.
 
 Password recovery and push registration/delivery are implemented. See
 [PASSWORD-AND-PUSH.md](PASSWORD-AND-PUSH.md) for deployment, configuration,

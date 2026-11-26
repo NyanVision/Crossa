@@ -251,6 +251,8 @@ export function SettingsScreen({ navigation }: Props) {
       {canModerate ? <><SectionHeading title="Moderation" /><View style={styles.card}><SettingsRow icon="shield-checkmark-outline" title="Review reports" description="Review and track reports submitted by the community" onPress={() => navigation.navigate("Moderation")} /></View></> : null}
       <SectionHeading title="Help" />
       <View style={styles.card}>
+        <SettingsRow icon="document-text-outline" title="Privacy Policy" description="How Crossa uses your information and your privacy choices" onPress={() => navigation.navigate("PrivacyPolicy")} />
+        <View style={styles.rowDivider} />
         <SettingsRow icon="help-circle-outline" title="Privacy and discovery help" description="Learn how visibility, location, and links work" onPress={() => Alert.alert("Privacy and discovery", "Nearby discovery is optional and starts off. When enabled, only opted-in people can find you, your visibility ends at the duration you select, and your exact location is never displayed. Gender stays private unless you turn on Show this on my profile. Your Discover choices are private and only shape your results. Social links appear only when you add them and mark them visible.", [{ text: "Got it" }])} />
         <View style={styles.rowDivider} />
         <SettingsRow icon="information-circle-outline" title="About Crossa" description="Accounts, profiles, discovery, and messages sync securely" onPress={() => Alert.alert("About Crossa", "Crossa uses Supabase for secure account, profile, discovery, and messaging services. Nearby discovery is optional and your exact location is never shown to other users.", [{ text: "Done" }])} />

@@ -17,6 +17,7 @@ import { useTheme } from "@/context/AppearanceContext";
 import type { NearbyProfile } from "@/services/discovery";
 import { ModerationScreen } from "@/screens/settings/ModerationScreen";
 import { useInbox } from "@/context/InboxContext";
+import { PrivacyPolicyScreen } from "@/screens/auth/PrivacyPolicyScreen";
 
 export type AppStackParamList = {
   Discover: undefined;
@@ -29,6 +30,7 @@ export type AppStackParamList = {
   MessageRequestDetail: { requestId: string };
   Settings: undefined;
   Moderation: undefined;
+  PrivacyPolicy: undefined;
   QrDiscovery: { startInScan?: boolean } | undefined;
 };
 
@@ -49,6 +51,7 @@ function DiscoverStack() {
       <Stack.Screen name="ProfileDetail" component={ProfileDetailScreen} options={{ title: "Profile" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       <Stack.Screen name="Moderation" component={ModerationScreen} options={{ title: "Report review" }} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: "Privacy Policy" }} />
       <Stack.Screen name="AboutYouSettings" component={AboutYouSettingsScreen} options={{ headerShown: false }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
       <Stack.Screen name="QrDiscovery" component={QrDiscoveryScreen} options={{ headerShown: false }} />
@@ -73,6 +76,7 @@ function ProfileStack() {
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "Edit profile" }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
       <Stack.Screen name="Moderation" component={ModerationScreen} options={{ title: "Report review" }} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} options={{ title: "Privacy Policy" }} />
       <Stack.Screen name="AboutYouSettings" component={AboutYouSettingsScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
