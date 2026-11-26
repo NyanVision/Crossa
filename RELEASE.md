@@ -2,14 +2,15 @@
 
 ## Database history
 
-The repository includes the six migrations currently applied to Crossa, including
+The repository includes the migration history applied to Crossa, including
 `20261125142517_fix_nearby_profiles_conflict_target.sql`. That file preserves the
 hosted repair instead of relying on an unrecorded manual database edit. Its
 regression test enables discovery for two accounts and repeats a nearby scan to
 exercise the repaired profile-grant conflict clause.
 
-The two later messaging/scheduler migrations are pending, not already deployed.
-Apply them and deploy their matching functions before installing the new app.
+The messaging/reporting and scheduler migrations were applied on 26 November 2026,
+and the matching push functions and minute scheduler are deployed. Their filenames
+match the actual hosted migration versions.
 After future hosted migrations, record the exact applied SQL/version in this
 directory and replay the complete history in tests.
 
